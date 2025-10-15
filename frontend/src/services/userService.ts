@@ -2,12 +2,21 @@
 import api from "../lib/api";
 import type { User } from "../types/User";
 
-// ✅ Get all users (supports search + column)
-export const getUsers = async (search?: string, column?: string): Promise<User[]> => {
-  // if search & column are passed, call backend with them
-  let url = "/users";
+// ✅ Get all users (supports search, column, and pagination)
+export const getUsers = async (
+  search?: string,
+  column?: string,
+  page: number = 1,
+  limit: number = 10
+): Promise<{
+  users: User[];
+  total: number;
+  totalPages: number;
+  currentPage: number;
+}> => {
+  let url = `/users?page=${page}&limit=${limit}`;
   if (search && column) {
-    url += `?search=${encodeURIComponent(search)}&column=${column}`;
+    url += `&search=${encodeURIComponent(search)}&column=${column}`;
   }
 
   const res = await api.get(url, { withCredentials: true });
@@ -43,3 +52,6 @@ export const toggleUserStatus = async (id: number, status: "active" | "inactive"
   const res = await api.put(`/users/${id}/status`, { status }, { withCredentials: true });
   return res.data;
 };
+
+
+

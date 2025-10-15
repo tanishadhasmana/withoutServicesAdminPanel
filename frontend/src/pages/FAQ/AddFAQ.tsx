@@ -17,20 +17,33 @@ interface FAQFormData {
 const AddFAQ: React.FC = () => {
   const nav = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const editing = Boolean(id); // Flag to check if editing
+  const editing = Boolean(id);
 
-  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } =
-    useForm<FAQFormData>({
-      mode: "onTouched",
-      defaultValues: {
-        question: "",
-        answer: "",
-        displayOrder: 1,
-        status: "active",
-      },
-    });
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<FAQFormData>({
+    mode: "onTouched",
+    defaultValues: {
+      question: "",
+      answer: "",
+      displayOrder: 1,
+      status: "active",
+    },
+  });
 
-  // Prefill form if editing
+  // 🚫 Prevent space typing or pasting
+  const preventSpaceInput = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    if (e.key === " ") e.preventDefault();
+  };
+
+  const preventSpacePaste = (e: React.ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const pasted = e.clipboardData.getData("text");
+    if (pasted.includes(" ")) e.preventDefault();
+  };
+
   useEffect(() => {
     if (editing && id) {
       const fetchFAQ = async () => {
@@ -58,7 +71,7 @@ const AddFAQ: React.FC = () => {
         await createFaq(data);
         toast.success("FAQ added successfully ✅");
       }
-      nav("/faq"); // redirect to list
+      nav("/faq");
     } catch (err) {
       console.error("Save failed:", err);
       toast.error("Failed to save FAQ ❌");
@@ -70,59 +83,120 @@ const AddFAQ: React.FC = () => {
       <PageHeader title={editing ? "Edit FAQ" : "Add FAQ"} />
       <Toaster position="top-right" reverseOrder={false} />
 
-      <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-6 rounded shadow-md max-w-xl mx-auto space-y-4 mt-4">
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="bg-white p-6 rounded shadow-md max-w-xl mx-auto space-y-4 mt-4"
+      >
         {/* Question */}
         <div>
-          <label className="block text-sm font-medium mb-1">Question *</label>
+          <label className="block text-sm font-medium mb-1">
+            Question <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
-            {...register("question", { required: "Question is required", maxLength: { value: 200, message: "Max 200 characters allowed" } })}
-            className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-400"
+            {...register("question", {
+              required: "Question is required",
+              maxLength: {
+                value: 200,
+                message: "Max 200 characters allowed",
+              },
+            })}
+            onKeyDown={preventSpaceInput}
+            onPaste={preventSpacePaste}
+            className={`w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-400 ${
+              errors.question ? "border-red-500" : ""
+            }`}
             placeholder="Enter question"
           />
-          {errors.question && <p className="text-red-500 text-sm mt-1">{errors.question.message}</p>}
+          {errors.question && (
+            <p className="text-red-500 text-sm mt-1">{errors.question.message}</p>
+          )}
         </div>
 
         {/* Answer */}
         <div>
-          <label className="block text-sm font-medium mb-1">Answer *</label>
+          <label className="block text-sm font-medium mb-1">
+            Answer <span className="text-red-500">*</span>
+          </label>
           <textarea
-            {...register("answer", { required: "Answer is required", maxLength: { value: 500, message: "Max 500 characters allowed" } })}
-            className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-400"
+            {...register("answer", {
+              required: "Answer is required",
+              maxLength: {
+                value: 500,
+                message: "Max 500 characters allowed",
+              },
+            })}
+            onKeyDown={preventSpaceInput}
+            onPaste={preventSpacePaste}
+            className={`w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-400 ${
+              errors.answer ? "border-red-500" : ""
+            }`}
             rows={4}
             placeholder="Enter answer"
           />
-          {errors.answer && <p className="text-red-500 text-sm mt-1">{errors.answer.message}</p>}
+          {errors.answer && (
+            <p className="text-red-500 text-sm mt-1">{errors.answer.message}</p>
+          )}
         </div>
 
         {/* Display Order & Status */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Display Order *</label>
+            <label className="block text-sm font-medium mb-1">
+              Display Order <span className="text-red-500">*</span>
+            </label>
             <input
               type="number"
-              {...register("displayOrder", { required: "Display Order is required", min: { value: 1, message: "Minimum order is 1" } })}
-              className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-400"
+              {...register("displayOrder", {
+                required: "Display Order is required",
+                min: { value: 1, message: "Minimum order is 1" },
+              })}
+              onKeyDown={preventSpaceInput}
+              onPaste={preventSpacePaste}
+              className={`w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-400 ${
+                errors.displayOrder ? "border-red-500" : ""
+              }`}
             />
-            {errors.displayOrder && <p className="text-red-500 text-sm mt-1">{errors.displayOrder.message}</p>}
+            {errors.displayOrder && (
+              <p className="text-red-500 text-sm mt-1">
+                {errors.displayOrder.message}
+              </p>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Status *</label>
-            <select {...register("status", { required: "Status is required" })} className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-400">
+            <label className="block text-sm font-medium mb-1">
+              Status <span className="text-red-500">*</span>
+            </label>
+            <select
+              {...register("status", { required: "Status is required" })}
+              className={`w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-400 ${
+                errors.status ? "border-red-500" : ""
+              }`}
+            >
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
-            {errors.status && <p className="text-red-500 text-sm mt-1">{errors.status.message}</p>}
+            {errors.status && (
+              <p className="text-red-500 text-sm mt-1">{errors.status.message}</p>
+            )}
           </div>
         </div>
 
         {/* Buttons */}
         <div className="flex gap-3">
-          <button type="submit" disabled={isSubmitting} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+          >
             {editing ? "Update FAQ" : "Save"}
           </button>
-          <button type="button" onClick={() => nav(-1)} className="px-4 py-2 border rounded hover:bg-gray-100">
+          <button
+            type="button"
+            onClick={() => nav(-1)}
+            className="px-4 py-2 border rounded hover:bg-gray-100"
+          >
             Cancel
           </button>
         </div>
@@ -132,154 +206,4 @@ const AddFAQ: React.FC = () => {
 };
 
 export default AddFAQ;
-
-
-
-
-
-
-// src/pages/FAQ/AddFAQ.tsx
-// import React from "react";
-// import { useForm } from "react-hook-form";
-// import { useNavigate } from "react-router-dom";
-// import PageHeader from "../../components/layout/PageHeader";
-// import toast, { Toaster } from "react-hot-toast";
-// import { createFaq } from "../../services/faqService";
-// import type { FAQStatus } from "../../types/FAQ";
-
-// interface FAQFormData {
-//   question: string;
-//   answer: string;
-//   displayOrder: number;
-//   status: FAQStatus;
-// }
-
-// const AddFAQ: React.FC = () => {
-//   const nav = useNavigate();
-
-//   const {
-//     register,
-//     handleSubmit,
-//     formState: { errors, isSubmitting },
-//   } = useForm<FAQFormData>({
-//     mode: "onTouched",
-//     defaultValues: {
-//       question: "",
-//       answer: "",
-//       displayOrder: 1,
-//       status: "active",
-//     },
-//   });
-
-//   const onSubmit = async (data: FAQFormData) => {
-//     try {
-//       await createFaq(data);
-//       toast.success("FAQ added successfully ✅");
-//       nav("/faq"); // redirect to list page
-//     } catch (err) {
-//       console.error("Failed to add FAQ:", err);
-//       toast.error("Failed to add FAQ ❌");
-//     }
-//   };
-
-//   return (
-//     <div>
-//       <PageHeader title="Add FAQ" />
-//       <Toaster position="top-right" reverseOrder={false} />
-
-//       <form
-//         onSubmit={handleSubmit(onSubmit)}
-//         className="bg-white p-6 rounded shadow-md max-w-xl mx-auto space-y-4 mt-4"
-//       >
-//         {/* Question */}
-//         <div>
-//           <label className="block text-sm font-medium mb-1">Question *</label>
-//           <input
-//             type="text"
-//             {...register("question", {
-//               required: "Question is required",
-//               maxLength: { value: 200, message: "Max 200 characters allowed" },
-//             })}
-//             className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-400"
-//             placeholder="Enter question"
-//           />
-//           {errors.question && (
-//             <p className="text-red-500 text-sm mt-1">{errors.question.message}</p>
-//           )}
-//         </div>
-
-//         {/* Answer */}
-//         <div>
-//           <label className="block text-sm font-medium mb-1">Answer *</label>
-//           <textarea
-//             {...register("answer", {
-//               required: "Answer is required",
-//               maxLength: { value: 500, message: "Max 500 characters allowed" },
-//             })}
-//             className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-400"
-//             rows={4}
-//             placeholder="Enter answer"
-//           />
-//           {errors.answer && (
-//             <p className="text-red-500 text-sm mt-1">{errors.answer.message}</p>
-//           )}
-//         </div>
-
-//         {/* Display Order & Status */}
-//         <div className="grid grid-cols-2 gap-4">
-//           <div>
-//             <label className="block text-sm font-medium mb-1">Display Order *</label>
-//             <input
-//               type="number"
-//               {...register("displayOrder", {
-//                 required: "Display Order is required",
-//                 min: { value: 1, message: "Minimum order is 1" },
-//               })}
-//               className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-400"
-//             />
-//             {errors.displayOrder && (
-//               <p className="text-red-500 text-sm mt-1">{errors.displayOrder.message}</p>
-//             )}
-//           </div>
-
-//           <div>
-//             <label className="block text-sm font-medium mb-1">Status *</label>
-//             <select
-//               {...register("status", { required: "Status is required" })}
-//               className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-400"
-//             >
-//               <option value="active">Active</option>
-//               <option value="inactive">Inactive</option>
-//             </select>
-//             {errors.status && (
-//               <p className="text-red-500 text-sm mt-1">{errors.status.message}</p>
-//             )}
-//           </div>
-//         </div>
-
-//         {/* Buttons */}
-//         <div className="flex gap-3">
-//           <button
-//             type="submit"
-//             disabled={isSubmitting}
-//             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-//           >
-//             Save
-//           </button>
-//           <button
-//             type="button"
-//             onClick={() => nav(-1)}
-//             className="px-4 py-2 border rounded hover:bg-gray-100"
-//           >
-//             Cancel
-//           </button>
-//         </div>
-//       </form>
-//     </div>
-//   );
-// };
-
-// export default AddFAQ;
-
-
 

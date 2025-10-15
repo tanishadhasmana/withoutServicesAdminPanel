@@ -1,227 +1,127 @@
-// import { Request, Response } from "express";
-// import * as cmsService from "../services/cms.service";
-
-// export const getCmsList = async (req: Request, res: Response) => {
-//   try {
-//     const cms = await cmsService.getCmsListService();
-//     res.json(cms);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error fetching CMS list", error });
-//   }
-// };
-
-// export const getCmsById = async (req: Request, res: Response) => {
-//   try {
-//     const cms = await cmsService.getCmsByIdService(Number(req.params.id));
-//     res.json(cms);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error fetching CMS", error });
-//   }
-// };
-
-// export const createCms = async (req: Request, res: Response) => {
-//   try {
-//     const cms = await cmsService.createCmsService(req.body);
-//     res.status(201).json(cms);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error creating CMS", error });
-//   }
-// };
-
-// export const updateCms = async (req: Request, res: Response) => {
-//   try {
-//     const cms = await cmsService.updateCmsService(Number(req.params.id), req.body);
-//     res.json(cms);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error updating CMS", error });
-//   }
-// };
-
-// export const deleteCms = async (req: Request, res: Response) => {
-//   try {
-//     const result = await cmsService.deleteCmsService(Number(req.params.id));
-//     res.json(result);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error deleting CMS", error });
-//   }
-// };
-
-
-
-
-
-// import { Request, Response } from "express";
-// import * as cmsService from "../services/cms.service";
-
-// export const getCmsList = async (req: Request, res: Response) => {
-//   try {
-//     const cms = await cmsService.getCmsListService();
-//     res.json(cms);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error fetching CMS pages", error });
-//   }
-// };
-
-// export const getCmsById = async (req: Request, res: Response) => {
-//   try {
-//     const cms = await cmsService.getCmsByIdService(Number(req.params.id));
-//     res.json(cms);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error fetching CMS page", error });
-//   }
-// };
-
-// export const createCms = async (req: Request, res: Response) => {
-//   try {
-//     const cms = await cmsService.createCmsService(req.body);
-//     res.status(201).json(cms);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error creating CMS page", error });
-//   }
-// };
-
-// export const updateCms = async (req: Request, res: Response) => {
-//   try {
-//     const cms = await cmsService.updateCmsService(Number(req.params.id), req.body);
-//     res.json(cms);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error updating CMS page", error });
-//   }
-// };
-
-// export const deleteCms = async (req: Request, res: Response) => {
-//   try {
-//     const cms = await cmsService.deleteCmsService(Number(req.params.id));
-//     res.json(cms);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error deleting CMS page", error });
-//   }
-// };
-
-
-
-
 import { Request, Response } from "express";
-import db from "../../connection";
+import {
+  getCmsListService,
+  getCmsByIdService,
+  createCmsService,
+  updateCmsService,
+  deleteCmsService,
+} from "../services/cms.service";
+import { logActivity } from "../services/audit.service";
 
-// Get all CMS pages with optional filters
-export const getCmsList = async (req: Request, res: Response) => {
+// ----------------------------
+// Get CMS List (Pagination + Filters)
+// ----------------------------
+export const getAllCms = async (req: Request, res: Response) => {
   try {
-    const { id, key, title, status } = req.query;
+    const { id, key, title, status, page = "1", limit = "10" } = req.query;
+    const filters: any = {};
 
-    const query = db("cms").select("*").orderBy("id", "desc");
+    if (id) filters.id = id;
+    if (key) filters.key = key;
+    if (title) filters.title = title;
+    if (status) filters.status = status;
 
-    if (id) query.where("id", "like", `%${id}%`);
-    if (key) query.where("key", "like", `%${key}%`);
-    if (title) query.where("title", "like", `%${title}%`);
-    if (status) query.where("status", status);
+    const pageNum = parseInt(page as string, 10) || 1;
+    const limitNum = parseInt(limit as string, 10) || 10;
 
-    const rows = await query;
-    return res.json(rows);
-  } catch (err) {
-    return res.status(500).json({
-      message: "Failed to fetch CMS",
-      error: (err as Error).message,
+    const result = await getCmsListService(filters, pageNum, limitNum);
+
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "View",
+      activity: `Fetched CMS list with filters: ${JSON.stringify(filters)} | page: ${pageNum}`,
     });
+
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error("Error fetching CMS list:", err);
+    return res.status(500).json({ message: "Failed to fetch CMS list" });
   }
 };
 
-// Get single CMS by ID
+// ----------------------------
+// Get CMS by ID
+// ----------------------------
 export const getCmsById = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const cms = await db("cms").where({ id }).first();
+    const cms = await getCmsByIdService(Number(req.params.id));
     if (!cms) return res.status(404).json({ message: "CMS not found" });
-    return res.json(cms);
-  } catch (err) {
-    return res.status(500).json({
-      message: "Failed to fetch CMS",
-      error: (err as Error).message,
+
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "View",
+      activity: `Viewed CMS ID: ${req.params.id}`,
     });
+
+    return res.status(200).json(cms);
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to fetch CMS" });
   }
 };
 
+// ----------------------------
 // Create CMS
+// ----------------------------
 export const createCms = async (req: Request, res: Response) => {
   try {
-    const {
-      key,
-      title,
-      metaKeyword,
-      metaTitle,
-      metaDescription,
-      content,
-      status = "active",
-    } = req.body;
-    const [id] = await db("cms").insert({
-      key,
-      title,
-      metaKeyword,
-      metaTitle,
-      metaDescription,
-      content,
-      status,
-      createdBy: req.user?.id || null,
+    const data = { ...req.body, createdBy: req.user?.id || null };
+    const created = await createCmsService(data);
+
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "Create",
+      activity: `Created CMS: ${req.body.title}`,
     });
 
-    const created = await db("cms").where({ id }).first();
     return res.status(201).json(created);
   } catch (err) {
-    return res.status(500).json({
-      message: "Failed to create CMS",
-      error: (err as Error).message,
-    });
+    return res.status(500).json({ message: "Failed to create CMS" });
   }
 };
 
+// ----------------------------
 // Update CMS
+// ----------------------------
 export const updateCms = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params as { id: string };
-    const { title, metaKeyword, metaTitle, metaDescription, content, status } =
-      req.body;
+    const data = { ...req.body, updatedBy: req.user?.id || null };
+    const updated = await updateCmsService(Number(req.params.id), data);
 
-    await db("cms")
-      .where({ id })
-      .update({
-        title,
-        metaKeyword,
-        metaTitle,
-        metaDescription,
-        content,
-        status,
-        updatedBy: req.user?.id || null,
-        updatedAt: db.fn.now(),
-      });
-
-    const updated = await db("cms").where({ id }).first();
-    return res.json(updated);
-  } catch (err) {
-    return res.status(500).json({
-      message: "Failed to update CMS",
-      error: (err as Error).message,
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "Update",
+      activity: `Updated CMS ID: ${req.params.id}`,
     });
+
+    return res.status(200).json(updated);
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to update CMS" });
   }
 };
 
-// Delete CMS (soft delete)
+// ----------------------------
+// Delete CMS (Soft Delete)
+// ----------------------------
 export const deleteCms = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params as { id: string };
-    await db("cms")
-      .where({ id })
-      .update({
-        deletedAt: db.fn.now(),
-        status: "inactive",
-        updatedBy: req.user?.id || null,
-      });
-    return res.json({ message: "CMS deleted (soft)" });
-  } catch (err) {
-    return res.status(500).json({
-      message: "Failed to delete CMS",
-      error: (err as Error).message,
+    const result = await deleteCmsService(Number(req.params.id), req.user?.id || null);
+
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "Delete",
+      activity: `Deleted CMS ID: ${req.params.id}`,
     });
+
+    return res.status(200).json(result);
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to delete CMS" });
   }
 };
+
 
 

@@ -1,118 +1,110 @@
 // src/services/faq.service.ts
 import db from "../../connection";
 
-export const getFaqListService = async (filters?: { status?: string }) => {
-  const { status } = filters || {};
-  let query = db("faq")
-    .select("id", "question", "answer", "status", "displayOrder", "createdBy", "updatedBy", "createdAt", "updatedAt", "deletedAt")
-    .orderBy("displayOrder", "asc");
+export interface FaqData {
+  question: string;
+  answer: string;
+  status?: string;
+  displayOrder?: number;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+}
 
-  if (status && (status === "active" || status === "inactive")) {
-    query = query.where({ status });
-  }
+// Query + pagination
+export const getFaqs = async (
+  filters: any = {},
+  page: number = 1,
+  limit: number = 10
+) => {
+  const offset = (page - 1) * limit;
 
-  const rows = await query;
-  return rows;
+  let query = db("faq").whereNull("deletedAt");
+
+  // apply filters
+  if (filters.id) query = query.andWhere("id", filters.id);
+  if (filters.question) query = query.andWhere("question", "like", `%${filters.question}%`);
+  if (filters.answer) query = query.andWhere("answer", "like", `%${filters.answer}%`);
+  if (filters.displayOrder) query = query.andWhere("displayOrder", filters.displayOrder);
+  if (filters.status && filters.status !== "all") query = query.andWhere("status", filters.status);
+
+  // count total
+  const totalRow = await query.clone().count({ count: "id" }).first();
+  const total = Number(totalRow?.count ?? 0);
+
+  // fetch page
+  const items = await query.select("*").orderBy("createdAt", "desc").limit(limit).offset(offset);
+
+  const totalPages = total > 0 ? Math.ceil(total / limit) : 1;
+
+  return { items, total, totalPages, currentPage: page };
 };
 
-export const getFaqByIdService = async (id: number) => {
-  const row = await db("faq")
-    .select("id", "question", "answer", "status", "displayOrder", "createdBy", "updatedBy", "createdAt", "updatedAt", "deletedAt")
-    .where({ id })
-    .first();
-  return row;
+export const fetchFaqById = async (id: string) => {
+  return db("faq").where({ id }).first();
 };
 
-export const createFaqService = async (data: any) => {
-  const insertData = {
-    question: data.question,
-    answer: data.answer ?? null,
-    displayOrder: data.displayOrder ?? 1,
-    status: data.status || "active",
-    createdBy: data.createdBy ?? null,
-  };
-
-  const inserted = await db("faq").insert(insertData);
-  const id = Array.isArray(inserted) ? inserted[0] : (inserted as number);
-  const created = await getFaqByIdService(Number(id));
-  return created;
+export const createFaq = async (data: FaqData) => {
+  const [id] = await db("faq").insert(data);
+  return db("faq").where({ id }).first();
 };
 
-export const updateFaqService = async (id: number, data: any) => {
-  const updateData = {
-    question: data.question,
-    answer: data.answer,
-    displayOrder: data.displayOrder,
-    status: data.status,
-    updatedBy: data.updatedBy ?? null,
-    updatedAt: db.fn.now(),
-  };
-
-  await db("faq").where({ id }).update(updateData);
-  const updated = await getFaqByIdService(id);
-  return updated;
+export const updateFaq = async (id: string, data: Partial<FaqData>) => {
+  await db("faq").where({ id }).update({ ...data, updatedAt: db.fn.now() });
+  return db("faq").where({ id }).first();
 };
 
-export const deleteFaqService = async (id: number) => {
-  await db("faq").where({ id }).update({ deletedAt: db.fn.now(), status: "inactive", updatedAt: db.fn.now() });
-  return { message: "FAQ deleted (soft)" };
+export const deleteFaq = async (id: string, updatedBy?: number | null) => {
+  return db("faq").where({ id }).update({
+    deletedAt: db.fn.now(),
+    status: "inactive",
+    updatedBy: updatedBy || null,
+  });
 };
 
 
 
 
+
+
+// src/services/faq.service.ts
 // import db from "../../connection";
 
-// export const getFaqListService = async () => {
-//   return db("faq").select("*");
+// export interface FaqData {
+//   question: string;
+//   answer: string;
+//   status?: string;
+//   createdBy?: number | null;
+//   updatedBy?: number | null;
+// }
+
+// export const getFaqs = async (query?: any) => {
+//   let dbQuery = db("faq").select("*").orderBy("createdAt", "desc");
+
+//   if (query?.status && query.status !== "all") {
+//     dbQuery = dbQuery.where({ status: query.status });
+//   }
+
+//   return dbQuery;
 // };
 
-// export const getFaqByIdService = async (id: number) => {
+// export const fetchFaqById = async (id: string) => {
 //   return db("faq").where({ id }).first();
 // };
 
-// export const createFaqService = async (data: any) => {
+// export const createFaq = async (data: FaqData) => {
 //   const [id] = await db("faq").insert(data);
-//   return getFaqByIdService(id);
+//   return db("faq").where({ id }).first();
 // };
 
-// export const updateFaqService = async (id: number, data: any) => {
-//   await db("faq").where({ id }).update(data);
-//   return getFaqByIdService(id);
+// export const updateFaq = async (id: string, data: Partial<FaqData>) => {
+//   await db("faq").where({ id }).update({ ...data, updatedAt: db.fn.now() });
+//   return db("faq").where({ id }).first();
 // };
 
-// export const deleteFaqService = async (id: number) => {
-//   await db("faq").where({ id }).del();
-//   return { message: "FAQ deleted" };
-// };
-
-
-
-
-
-
-
-// import db from "../../connection";
-
-// export const getFaqListService = async () => {
-//   return await db("faqs").select("*");
-// };
-
-// export const getFaqByIdService = async (id: number) => {
-//   return await db("faqs").where({ id }).first();
-// };
-
-// export const createFaqService = async (data: any) => {
-//   const [faq] = await db("faqs").insert(data).returning("*");
-//   return faq;
-// };
-
-// export const updateFaqService = async (id: number, data: any) => {
-//   const [faq] = await db("faqs").where({ id }).update(data).returning("*");
-//   return faq;
-// };
-
-// export const deleteFaqService = async (id: number) => {
-//   const [faq] = await db("faqs").where({ id }).del().returning("*");
-//   return faq;
+// export const deleteFaq = async (id: string, updatedBy?: number | null) => {
+//   return db("faq").where({ id }).update({
+//     deletedAt: db.fn.now(),
+//     status: "inactive",
+//     updatedBy: updatedBy || null,
+//   });
 // };

@@ -1,4 +1,3 @@
-// src/routes/faqRoutes.ts
 import { Router } from "express";
 import { 
   getFaqList, 
@@ -7,6 +6,7 @@ import {
   updateFaq, 
   deleteFaq 
 } from "../controllers/faqController";
+
 import { protect, requireAdmin } from "../middleware/authMiddleware";
 
 const router = Router();

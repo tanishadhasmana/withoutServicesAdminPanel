@@ -1,8 +1,11 @@
-// src/services/audit.service.ts
 import db from "../../connection";
 
-export const getAuditLogsService = async (opts?: { limit?: number; offset?: number; type?: string }) => {
-  const { limit = 50, offset = 0, type } = opts || {};
+
+export const fetchAuditLogs = async (
+  limit: number,
+  offset: number,
+  type?: string
+) => {
   let query = db("audit_logs as a")
     .select(
       "a.id",
@@ -14,30 +17,53 @@ export const getAuditLogsService = async (opts?: { limit?: number; offset?: numb
       "u.lastName",
       "u.email"
     )
-    .leftJoin("users as u", "a.userId", "u.id")
+    .leftJoin("users as u", "a.userId", "u.id");
+
+  if (type) query = query.where("a.type", type);
+
+  // Total count
+  const [{ count }] = await query.clone().clearSelect().count({ count: "*" });
+
+  // Paginated data
+  const logs = await query
     .orderBy("a.timestamp", "desc")
-    .limit(Number(limit))
-    .offset(Number(offset));
+    .limit(limit)
+    .offset(offset);
 
-  if (type) query = query.where("a.type", String(type));
-
-  const rows = await query;
-  return rows;
+  return { logs, total: Number(count) };
 };
 
+// src/utils/auth.ts
+export const getCurrentUser = () => {
+  const userStr = localStorage.getItem("user");
+  if (!userStr) return null;
 
+  try {
+    const user = JSON.parse(userStr);
+    return {
+      userId: user.id,
+      username: `${user.firstName} ${user.lastName}`,
+    };
+  } catch (err) {
+    console.error("Failed to parse user from localStorage", err);
+    return null;
+  }
+};
 
-
-
-// import db from "../../connection";
-
-// export const getAuditLogsService = async () => {
-//   return db("audit_logs").select("*").orderBy("created_at", "desc");
-// };
-
-
-// import db from "../../connection";
-
-// export const getAuditLogsService = async () => {
-//   return await db("audit_logs").select("*").orderBy("created_at", "desc");
-// };
+// step 1 to centralize the fucn for audit logs
+interface LogActivityParams {
+  userId: any;
+  username: string;
+  type: string; // e.g., "View", "Authentication", "Update"
+  activity: string; // e.g., "Viewed dashboard", "Created user"
+}
+export const logActivity = async ( params: LogActivityParams) => {
+  const { userId, username, type, activity } = params;
+  return db("audit_logs").insert({
+    userId,
+    username,
+    type,
+    activity,
+    timestamp: db.fn.now(),
+  });
+};

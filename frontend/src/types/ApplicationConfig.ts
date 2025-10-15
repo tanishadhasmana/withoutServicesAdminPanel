@@ -21,19 +21,3 @@ export interface ApplicationConfigFilter {
   status?: ConfigStatus;
 }
 
-
-
-
-
-
-
-
-// export interface ApplicationConfig {
-//   id: number;
-//   key: string;
-//   value?: string | null;
-//   displayOrder: number;
-//   status: "active" | "inactive";
-//   createdAt?: string;  
-//   updatedAt?: string;
-// }

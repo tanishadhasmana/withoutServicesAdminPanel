@@ -11,25 +11,3 @@ export interface AuthContextType {
 
 // only export context here
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-
-
-// import { createContext, useContext } from "react";
-// import type { User } from "../types/User";
-
-// export interface AuthContextType {
-//   user: User | null;
-//   login: (user: User) => void;
-//   logout: () => void;
-// }
-
-// // ✅ Default empty context
-// const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// export const useAuth = () => {
-//   const context = useContext(AuthContext);
-//   if (!context) throw new Error("useAuth must be used within AuthProvider");
-//   return context;
-// };
-
-// export { AuthContext };

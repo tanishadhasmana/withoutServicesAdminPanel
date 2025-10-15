@@ -12,10 +12,10 @@ import { protect } from "../middleware/authMiddleware";
 const router = Router();
 
 router.get("/", protect, getRoles);
+router.get("/:id", protect, getRoleById);
 router.post("/", protect, createRole);
 router.put("/:id", protect, updateRole);
-router.delete("/:id", protect, deleteRole);
-router.get("/:id", protect, getRoleById);
 router.patch("/:id/status", protect, toggleRoleStatus);
+router.delete("/:id", protect, deleteRole);
 
 export default router;

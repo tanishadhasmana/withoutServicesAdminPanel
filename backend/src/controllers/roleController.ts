@@ -1,232 +1,153 @@
-// import { Request, Response } from "express";
-// import * as roleService from "../services/role.service";
-
-// export const getRoles = async (req: Request, res: Response) => {
-//   try {
-//     const roles = await roleService.getRolesService();
-//     res.json(roles);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error fetching roles", error });
-//   }
-// };
-
-// export const getRoleById = async (req: Request, res: Response) => {
-//   try {
-//     const role = await roleService.getRoleByIdService(Number(req.params.id));
-//     res.json(role);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error fetching role", error });
-//   }
-// };
-
-// export const createRole = async (req: Request, res: Response) => {
-//   try {
-//     const role = await roleService.createRoleService(req.body);
-//     res.status(201).json(role);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error creating role", error });
-//   }
-// };
-
-// export const updateRole = async (req: Request, res: Response) => {
-//   try {
-//     const role = await roleService.updateRoleService(Number(req.params.id), req.body);
-//     res.json(role);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error updating role", error });
-//   }
-// };
-
-// export const deleteRole = async (req: Request, res: Response) => {
-//   try {
-//     const result = await roleService.deleteRoleService(Number(req.params.id));
-//     res.json(result);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error deleting role", error });
-//   }
-// };
-
-// export const toggleRoleStatus = async (req: Request, res: Response) => {
-//   try {
-//     const result = await roleService.toggleRoleStatusService(Number(req.params.id), req.body.status);
-//     res.json(result);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error updating role status", error });
-//   }
-// };
-
-
-
-
-
-
-// import { Request, Response } from "express";
-// import * as roleService from "../services/role.service";
-
-// export const getRoles = async (req: Request, res: Response) => {
-//   try {
-//     const roles = await roleService.getRolesService();
-//     res.json(roles);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error fetching roles", error });
-//   }
-// };
-
-// export const getRoleById = async (req: Request, res: Response) => {
-//   try {
-//     const role = await roleService.getRoleByIdService(Number(req.params.id));
-//     res.json(role);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error fetching role", error });
-//   }
-// };
-
-// export const createRole = async (req: Request, res: Response) => {
-//   try {
-//     const role = await roleService.createRoleService(req.body);
-//     res.status(201).json(role);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error creating role", error });
-//   }
-// };
-
-// export const updateRole = async (req: Request, res: Response) => {
-//   try {
-//     const role = await roleService.updateRoleService(Number(req.params.id), req.body);
-//     res.json(role);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error updating role", error });
-//   }
-// };
-
-// export const deleteRole = async (req: Request, res: Response) => {
-//   try {
-//     const role = await roleService.deleteRoleService(Number(req.params.id));
-//     res.json(role);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error deleting role", error });
-//   }
-// };
-
-// export const toggleRoleStatus = async (req: Request, res: Response) => {
-//   try {
-//     const role = await roleService.toggleRoleStatusService(Number(req.params.id), req.body.status);
-//     res.json(role);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error toggling status", error });
-//   }
-// };
-
-
-
 import { Request, Response } from "express";
-import db from "../../connection";
+import {
+  getRoles as getRolesService,
+  fetchRoleById,
+  createRole as createRoleService,
+  updateRole as updateRoleService,
+  toggleRoleStatus as toggleRoleStatusService,
+  deleteRole as deleteRoleService,
+} from "../services/role.service";
+import { logActivity } from "../services/audit.service";
 
-// Get all roles with optional filtering
+// ----------------------------
+// Get Roles (Pagination + Filters)
+// ----------------------------
 export const getRoles = async (req: Request, res: Response) => {
   try {
-    const { id, role, description, status } = req.query;
-    const query = db("roles").select("*").orderBy("id", "asc");
+    const { id, role, description, status, page = "1", limit = "10" } = req.query;
+    const filters: any = {};
 
-    if (id) query.where("id", "like", `%${id}%`);
-    if (role) query.where("role", "like", `%${role}%`);
-    if (description) query.where("description", "like", `%${description}%`);
-    if (status) query.where("status", status);
+    if (id) filters.id = id;
+    if (role) filters.role = role;
+    if (description) filters.description = description;
+    if (status) filters.status = status;
 
-    const rows = await query;
-    res.json(rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to fetch roles", error: (err as Error).message });
-  }
-};
+    const pageNum = parseInt(page as string, 10) || 1;
+    const limitNum = parseInt(limit as string, 10) || 10;
+    const offset = (pageNum - 1) * limitNum;
 
-// Create role
-export const createRole = async (req: Request, res: Response) => {
-  try {
-    const { role, description, status = "active" } = req.body;
-    const [id] = await db("roles").insert({
-      role,
-      description,
-      status,
-      createdBy: req.user?.id || null,
+    const { roles, total } = await getRolesService(filters, limitNum, offset);
+
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "View",
+      activity: `Fetched role list with filters: ${JSON.stringify(filters)} | page: ${pageNum}`,
     });
-    const created = await db("roles").where({ id }).first();
-    res.status(201).json(created);
+
+    return res.json({
+      roles,
+      total,
+      totalPages: Math.ceil(total / limitNum),
+      currentPage: pageNum,
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to create role", error: (err as Error).message });
+    console.error("Error fetching roles:", err);
+    return res.status(500).json({ message: "Failed to fetch roles" });
   }
 };
 
-// Update role
-export const updateRole = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { role, description, status } = req.body;
-    const updated = await db("roles")
-      .where({ id })
-      .update({
-        role,
-        description,
-        status,
-        updatedBy: req.user?.id || null,
-        updatedAt: db.fn.now(),
-      })
-      .returning("*");
-    if (!updated || updated.length === 0) return res.status(404).json({ message: "Role not found" });
-    res.json(updated[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to update role", error: (err as Error).message });
-  }
-};
-
-// Toggle role status
-export const toggleRoleStatus = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-    if (!status) return res.status(400).json({ message: "Status required" });
-    const updated = await db("roles")
-      .where({ id })
-      .update({ status, updatedBy: req.user?.id || null, updatedAt: db.fn.now() })
-      .returning("*");
-    if (!updated || updated.length === 0) return res.status(404).json({ message: "Role not found" });
-    res.json(updated[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to update status", error: (err as Error).message });
-  }
-};
-
-// Get role by ID
+// ----------------------------
+// Get Role by ID
+// ----------------------------
 export const getRoleById = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const role = await db("roles").where({ id }).first();
+    const role = await fetchRoleById(req.params.id);
     if (!role) return res.status(404).json({ message: "Role not found" });
-    res.json(role);
+
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "View",
+      activity: `Viewed role ID: ${req.params.id}`,
+    });
+
+    return res.json(role);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to fetch role", error: (err as Error).message });
+    return res.status(500).json({ message: "Failed to fetch role", error: (err as Error).message });
   }
 };
 
-// Soft delete role
+// ----------------------------
+// Create Role
+// ----------------------------
+export const createRole = async (req: Request, res: Response) => {
+  try {
+    const data = { ...req.body, createdBy: req.user?.id || null };
+    const created = await createRoleService(data);
+
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "Create",
+      activity: `Created role: ${data.role}`,
+    });
+
+    return res.status(201).json(created);
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to create role", error: (err as Error).message });
+  }
+};
+
+// ----------------------------
+// Update Role
+// ----------------------------
+export const updateRole = async (req: Request, res: Response) => {
+  try {
+    const data = { ...req.body, updatedBy: req.user?.id || null };
+    const updated = await updateRoleService(req.params.id, data);
+
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "Update",
+      activity: `Updated role ID: ${req.params.id} with data: ${JSON.stringify(data)}`,
+    });
+
+    return res.json(updated);
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to update role", error: (err as Error).message });
+  }
+};
+
+// ----------------------------
+// Toggle Role Status
+// ----------------------------
+export const toggleRoleStatus = async (req: Request, res: Response) => {
+  try {
+    const updated = await toggleRoleStatusService(req.params.id, req.body.status);
+
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "Update",
+      activity: `Toggled status for role ID: ${req.params.id} to: ${req.body.status}`,
+    });
+
+    return res.json(updated);
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to toggle role status", error: (err as Error).message });
+  }
+};
+
+// ----------------------------
+// Delete Role (Soft Delete)
+// ----------------------------
 export const deleteRole = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    const deleted = await db("roles")
-      .where({ id })
-      .update({ status: "inactive", deletedAt: db.fn.now(), updatedBy: req.user?.id || null })
-      .returning("*");
-    if (!deleted || deleted.length === 0) return res.status(404).json({ message: "Role not found" });
-    res.json({ message: "Role deleted (soft)", role: deleted[0] });
+    const result = await deleteRoleService(req.params.id, req.user?.id || null);
+
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "Delete",
+      activity: `Deleted role ID: ${req.params.id}`,
+    });
+
+    return res.status(200).json(result);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to delete role", error: (err as Error).message });
+    console.error("Delete Role Error:", err);
+    return res.status(500).json({ message: "Failed to delete role", error: (err as Error).message });
   }
 };
-
 

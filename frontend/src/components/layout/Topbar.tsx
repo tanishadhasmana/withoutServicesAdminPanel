@@ -38,17 +38,3 @@ const Topbar: React.FC = () => {
 
 export default Topbar;
 
-
-
-// // src/components/layout/TopBar.tsx
-// import React from "react";
-
-// const TopBar: React.FC = () => {
-//   return (
-//     <div className="w-full bg-white border-b shadow-sm p-4 flex items-center justify-between">
-//       <h2 className="text-xl font-semibold text-gray-700">Dashboard</h2>
-//     </div>
-//   );
-// };
-
-// export default TopBar;

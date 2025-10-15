@@ -12,12 +12,22 @@ const DashboardHome: React.FC = () => {
     const fetchStats = async () => {
       try {
         // ✅ Fetch total users (with cookie)
-        const usersRes = await api.get("/users", { withCredentials: true });
-        setUserCount(usersRes.data?.length || 0);
+        // const usersRes = await api.get("/users", { withCredentials: true });
+        // setUserCount(usersRes.data?.length || 0);
+// changed above for pagination i/p
+const usersRes = await api.get("/users?page=1&limit=1", { withCredentials: true });
+setUserCount(usersRes.data?.total || 0);
+
+
+
 
         // ✅ Fetch total roles (with cookie)
-        const rolesRes = await api.get("/roles", { withCredentials: true });
-        setRoleCount(rolesRes.data?.length || 0);
+        // const rolesRes = await api.get("/roles", { withCredentials: true });
+        // setRoleCount(rolesRes.data?.length || 0);
+// for pagination i/p
+const rolesRes = await api.get("/roles?page=1&limit=1", { withCredentials: true });
+setRoleCount(rolesRes.data?.total || 0);
+
       } catch (err) {
   if (err instanceof Error) {
     console.error("⚠️ Failed to load dashboard stats:", err.message);
@@ -79,45 +89,3 @@ const DashboardHome: React.FC = () => {
 export default DashboardHome;
 
 
-
-
-
-// // src/pages/Dashboard/DashboardHome.tsx
-// import React, { useEffect, useState } from "react";
-// import Card from "../../components/common/Card";
-// import api from "../../lib/api";
-
-// const DashboardHome: React.FC = () => {
-//   const [totals, setTotals] = useState({ users: "—", cms: "—", faq: "—", audit: "—" });
-
-//   useEffect(() => {
-//     (async () => {
-//       try {
-//         const users = await api.get("/users");
-//         setTotals((t) => ({ ...t, users: `${users.data.length}` }));
-//       } catch (err) {
-//         console.log(err);
-        
-//       } 
-//     })();
-//   }, []);
-
-//   return (
-//       <div className="space-y-6">
-//         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-//           <Card title="Total Users" value={totals.users} />
-//           <Card title="CMS Pages" value={totals.cms} />
-//           <Card title="FAQs" value={totals.faq} />
-//           <Card title="Audit Logs" value={totals.audit} />
-//         </div>
-
-//         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-//           <div className="bg-white rounded shadow p-4 h-64 flex items-center justify-center text-gray-400">Bar Chart Area</div>
-//           <div className="bg-white rounded shadow p-4 h-64 flex items-center justify-center text-gray-400">Line Chart Area</div>
-//         </div>
-//       </div>
-   
-//   );
-// };
-
-// export default DashboardHome;

@@ -1,159 +1,82 @@
-// import { Request, Response } from "express";
-// import * as faqService from "../services/faq.service";
-
-// export const getFaqList = async (req: Request, res: Response) => {
-//   try {
-//     const faqs = await faqService.getFaqListService();
-//     res.json(faqs);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error fetching FAQs", error });
-//   }
-// };
-
-// export const getFaqById = async (req: Request, res: Response) => {
-//   try {
-//     const faq = await faqService.getFaqByIdService(Number(req.params.id));
-//     res.json(faq);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error fetching FAQ", error });
-//   }
-// };
-
-// export const createFaq = async (req: Request, res: Response) => {
-//   try {
-//     const faq = await faqService.createFaqService(req.body);
-//     res.status(201).json(faq);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error creating FAQ", error });
-//   }
-// };
-
-// export const updateFaq = async (req: Request, res: Response) => {
-//   try {
-//     const faq = await faqService.updateFaqService(Number(req.params.id), req.body);
-//     res.json(faq);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error updating FAQ", error });
-//   }
-// };
-
-// export const deleteFaq = async (req: Request, res: Response) => {
-//   try {
-//     const result = await faqService.deleteFaqService(Number(req.params.id));
-//     res.json(result);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error deleting FAQ", error });
-//   }
-// };
-
-
-
-
-
-// import { Request, Response } from "express";
-// import * as faqService from "../services/faq.service";
-
-// export const getFaqList = async (req: Request, res: Response) => {
-//   try {
-//     const faqs = await faqService.getFaqListService();
-//     res.json(faqs);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error fetching FAQs", error });
-//   }
-// };
-
-// export const getFaqById = async (req: Request, res: Response) => {
-//   try {
-//     const faq = await faqService.getFaqByIdService(Number(req.params.id));
-//     res.json(faq);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error fetching FAQ", error });
-//   }
-// };
-
-// export const createFaq = async (req: Request, res: Response) => {
-//   try {
-//     const faq = await faqService.createFaqService(req.body);
-//     res.status(201).json(faq);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error creating FAQ", error });
-//   }
-// };
-
-// export const updateFaq = async (req: Request, res: Response) => {
-//   try {
-//     const faq = await faqService.updateFaqService(Number(req.params.id), req.body);
-//     res.json(faq);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error updating FAQ", error });
-//   }
-// };
-
-// export const deleteFaq = async (req: Request, res: Response) => {
-//   try {
-//     const faq = await faqService.deleteFaqService(Number(req.params.id));
-//     res.json(faq);
-//   } catch (error) {
-//     res.status(500).json({ message: "Error deleting FAQ", error });
-//   }
-// };
-
-
-
-
-
-
-
-
+// src/controllers/faqController.ts
 import { Request, Response } from "express";
-import db from "../../connection";
+import {
+  getFaqs,
+  fetchFaqById,
+  createFaq as createFaqService,
+  updateFaq as updateFaqService,
+  deleteFaq as deleteFaqService,
+} from "../services/faq.service";
+import { logActivity } from "../services/audit.service";
 
-// Get FAQs with optional status filter
+// ----------------------------
+// Get FAQ List (Pagination + Filters)
+// ----------------------------
 export const getFaqList = async (req: Request, res: Response) => {
   try {
-    const { status } = req.query as { status?: string };
+    const { id, question, answer, displayOrder, status, page = "1", limit = "10" } = req.query;
 
-    let query = db("faq").select("*").orderBy("displayOrder", "asc");
+    const filters: any = {};
+    if (id) filters.id = id;
+    if (question) filters.question = question;
+    if (answer) filters.answer = answer;
+    if (displayOrder) filters.displayOrder = displayOrder;
+    if (status) filters.status = status;
 
-    if (status && (status === "active" || status === "inactive")) {
-      query = query.where({ status });
-    }
+    const pageNum = parseInt(page as string, 10) || 1;
+    const limitNum = parseInt(limit as string, 10) || 10;
 
-    const rows = await query;
-    return res.json(rows);
+    const result = await getFaqs(filters, pageNum, limitNum);
+
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "View",
+      activity: `Viewed FAQ List | page: ${pageNum} | filters: ${JSON.stringify(filters)}`,
+    });
+
+    return res.status(200).json(result);
   } catch (err) {
-    return res.status(500).json({ message: "Failed to fetch FAQ", error: (err as Error).message });
+    console.error("Failed to fetch FAQs:", err);
+    return res.status(500).json({ message: "Failed to fetch FAQs" });
   }
 };
 
+// ----------------------------
 // Get single FAQ by ID
+// ----------------------------
 export const getFaqById = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params as { id: string };
-    const faq = await db("faq").where({ id }).first();
+    const faq = await fetchFaqById(req.params.id);
+
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "View",
+      activity: `Viewed FAQ (ID: ${req.params.id})`,
+    });
 
     if (!faq) return res.status(404).json({ message: "FAQ not found" });
-
     return res.json(faq);
   } catch (err) {
     return res.status(500).json({ message: "Failed to fetch FAQ", error: (err as Error).message });
   }
 };
 
-// Create FAQ
+// ----------------------------
+// Create new FAQ
+// ----------------------------
 export const createFaq = async (req: Request, res: Response) => {
   try {
-    const { question, answer, displayOrder = 1, status = "active" } = req.body;
+    const data = { ...req.body, createdBy: req.user?.id || null };
+    const created = await createFaqService(data);
 
-    let created;
-    if (db.client.config.client === "pg") {
-      [created] = await db("faq")
-        .insert({ question, answer, displayOrder, status, createdBy: req.user?.id || null })
-        .returning("*");
-    } else {
-      const [id] = await db("faq").insert({ question, answer, displayOrder, status, createdBy: req.user?.id || null });
-      created = await db("faq").where({ id }).first();
-    }
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "Create",
+      activity: `Created FAQ (Question: ${req.body.question || "N/A"})`,
+    });
 
     return res.status(201).json(created);
   } catch (err) {
@@ -161,37 +84,41 @@ export const createFaq = async (req: Request, res: Response) => {
   }
 };
 
+// ----------------------------
 // Update FAQ
+// ----------------------------
 export const updateFaq = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params as { id: string };
-    const { question, answer, displayOrder, status } = req.body;
+    const data = { ...req.body, updatedBy: req.user?.id || null };
+    const updated = await updateFaqService(req.params.id, data);
 
-    await db("faq")
-      .where({ id })
-      .update({
-        question,
-        answer,
-        displayOrder,
-        status,
-        updatedBy: req.user?.id || null,
-        updatedAt: db.fn.now(),
-      });
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "Update",
+      activity: `Updated FAQ (ID: ${req.params.id})`,
+    });
 
-    const updated = await db("faq").where({ id }).first();
     return res.json(updated);
   } catch (err) {
     return res.status(500).json({ message: "Failed to update FAQ", error: (err as Error).message });
   }
 };
 
-// Delete FAQ (soft delete)
+// ----------------------------
+// Soft Delete FAQ
+// ----------------------------
 export const deleteFaq = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params as { id: string };
-    await db("faq")
-      .where({ id })
-      .update({ deletedAt: db.fn.now(), status: "inactive", updatedBy: req.user?.id || null });
+    await deleteFaqService(req.params.id, req.user?.id || null);
+
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "Delete",
+      activity: `Deleted FAQ (ID: ${req.params.id})`,
+    });
+
     return res.json({ message: "FAQ deleted (soft)" });
   } catch (err) {
     return res.status(500).json({ message: "Failed to delete FAQ", error: (err as Error).message });

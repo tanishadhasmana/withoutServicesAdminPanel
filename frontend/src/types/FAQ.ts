@@ -23,21 +23,3 @@ export interface FAQFormData {
 
 
 
-
-
-
-
-// export type FAQStatus = "active" | "inactive";
-
-// export interface FAQ {
-//   id: number;
-//   question: string;
-//   answer?: string | null;
-//   displayOrder: number;
-//   status: FAQStatus;
-//   createdBy?: number | null;
-//   updatedBy?: number | null;
-//   createdAt: string;
-//   updatedAt?: string | null;
-//   deletedAt?: string | null;
-// }

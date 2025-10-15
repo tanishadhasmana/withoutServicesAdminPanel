@@ -1,82 +1,38 @@
-// src/services/user.service.ts
 import db from "../../connection";
-import { hashPassword, comparePassword } from "../utils/hashPassword";
-import { generateToken } from "../utils/generateToken";
-import { sendMail } from "../utils/mailer";
+import bcrypt from "bcrypt";
+import path from "path";
+import fs from "fs";
+import { logActivity } from "./audit.service";
 
-/**
- * Create first admin (one-time)
- */
+// ----------------------------
+// Create First Admin
+// ----------------------------
 export const createFirstAdminService = async (data: any) => {
-  const { firstName, lastName, email, password, role } = data;
-  const hashed = await hashPassword(password || Math.random().toString(36).slice(-8));
-
-  const inserted = await db("users").insert({
-    firstName,
-    lastName,
-    email,
-    password: hashed,
+  const hashedPassword = await bcrypt.hash(data.password, 10);
+  const [id] = await db("users").insert({
+    ...data,
+    password: hashedPassword,
+    role: "admin",
     roleId: null,
-    role: role || "admin",
     status: "active",
   });
 
-  const id = Array.isArray(inserted) ? inserted[0] : (inserted as number);
-  const user = await db("users")
-    .leftJoin("roles", "users.roleId", "roles.id")
-    .select(
-      "users.id",
-      "users.firstName",
-      "users.lastName",
-      "users.email",
-      "roles.role as role",
-      "users.profileImage as image",
-      "users.status"
-    )
-    .where("users.id", id)
-    .first();
-
-  // Optionally send welcome mail
-  try {
-    await sendMail(email, "Welcome to Admin Panel", `Your account is created`, `<p>Hello ${firstName}</p>`);
-  } catch (e) {
-    // don't block creation on mail failure
-    console.warn("Welcome mail failed:", e);
-  }
-
-  return user;
+  return db("users").where({ id }).first();
 };
 
-/**
- * Login user - returns { user, token }
- */
-export const loginUserService = async (email: string, password: string) => {
-  const user = await db("users")
-    .leftJoin("roles", "users.roleId", "roles.id")
-    .select("users.id", "users.firstName", "users.lastName", "users.email", "users.password", "roles.role as role", "users.status", "users.profileImage as image")
-    .where("users.email", email)
-    .first();
+// ----------------------------
+// Get All Users (with pagination & search)
+// ----------------------------
+export const getAllUsersService = async (
+  search?: string,
+  column?: string,
+  page: number = 1,
+  limit: number = 10
+) => {
+  const offset = (page - 1) * limit;
 
-  if (!user) throw new Error("User not found");
-  if (user.status !== "active") throw new Error("User inactive");
-
-  const isMatch = await comparePassword(password, user.password);
-  if (!isMatch) throw new Error("Invalid credentials");
-
-  // remove password from returned user object
-  const { password: _pwd, ...userWithoutPassword } = user;
-
-  const token = generateToken({ id: user.id, role: user.role });
-  return { user: userWithoutPassword, token };
-};
-
-export const logoutUserService = async () => {
-  // Nothing server-side necessary here for stateless JWT; controller can clear cookie.
-  return { message: "Logged out successfully" };
-};
-
-export const getAllUsersService = async (filters?: { search?: string; column?: string }) => {
-  let query = db("users")
+  // 🧱 Base query for users list
+  let baseQuery = db("users")
     .leftJoin("roles", "users.roleId", "roles.id")
     .select(
       "users.id",
@@ -86,352 +42,459 @@ export const getAllUsersService = async (filters?: { search?: string; column?: s
       "users.phone",
       "roles.role as role",
       "users.status",
-      "users.profileImage as profileImage",
+      "users.profileImage",
       "users.createdAt"
     );
 
-  if (filters?.search && filters.column) {
-    const col = String(filters.column);
-    const searchTerm = String(filters.search);
-    if (col === "status") query = query.where(`users.${col}`, searchTerm);
-    else query = query.where(`users.${col}`, "like", `%${searchTerm}%`);
+  // 🧩 Search filter (optional)
+  if (search && column) {
+    const searchColumn = `users.${column}`;
+    if (column === "status") {
+      baseQuery = baseQuery.where(searchColumn, search.toLowerCase());
+    } else {
+      baseQuery = baseQuery.where(searchColumn, "like", `%${search}%`);
+    }
   }
 
-  const rows = await query.orderBy("users.createdAt", "desc");
-  return rows;
+  // ✅ Consistent count query
+  const countResult = await db("users")
+    .modify((qb) => {
+      if (search && column) {
+        if (column === "status") {
+          qb.where(`users.${column}`, search.toLowerCase());
+        } else {
+          qb.where(`users.${column}`, "like", `%${search}%`);
+        }
+      }
+    })
+    .count<{ total: number }>("id as total");
+
+  const total = Number(countResult[0]?.total || 0);
+
+  const users = await baseQuery
+    .orderBy("users.createdAt", "desc")
+    .limit(limit)
+    .offset(offset);
+
+  const totalPages = total > 0 ? Math.ceil(total / limit) : 1;
+
+  return { users, total, totalPages, currentPage: page };
 };
 
+// ----------------------------
+// Get User By ID
+// ----------------------------
 export const getUserByIdService = async (id: number) => {
-  const row = await db("users")
+  return db("users")
     .leftJoin("roles", "users.roleId", "roles.id")
-    .select("users.id", "users.firstName", "users.lastName", "users.email", "users.phone", "roles.role as role", "users.status", "users.profileImage as profileImage")
+    .select(
+      "users.id",
+      "users.firstName",
+      "users.lastName",
+      "users.email",
+      "users.phone",
+      "roles.role as role",
+      "users.status",
+      "users.profileImage",
+      "users.createdAt"
+    )
     .where("users.id", id)
     .first();
-  return row;
 };
 
-export const createUserService = async (data: any, file?: Express.Multer.File) => {
-  const { firstName, lastName, email, password, roleId, status } = data;
-  const hashed = await hashPassword(password || Math.random().toString(36).slice(-8));
-  const image = file ? `/assets/images/${file.filename}` : null;
+// ----------------------------
+// Create User
+// ----------------------------
+export const createUserService = async (data: any) => {
+  const existing = await db("users").where({ email: data.email }).first();
+  if (existing) throw new Error("User already exists");
 
-  const inserted = await db("users").insert({
-    firstName,
-    lastName,
-    email,
-    password: hashed,
-    roleId: roleId ? Number(roleId) : null,
-    status: status || "active",
-    profileImage: image,
-  });
+  const tempPassword = Math.random().toString(36).slice(-8);
+  const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-  const id = Array.isArray(inserted) ? inserted[0] : (inserted as number);
-  const created = await getUserByIdService(Number(id));
-  return created;
-};
+  let roleName: string | null = null;
+  if (data.roleId) {
+    const roleRow = await db("roles").where({ id: Number(data.roleId) }).first();
+    if (roleRow) roleName = roleRow.role;
+  }
 
-export const updateUserService = async (id: number, data: any, file?: Express.Multer.File) => {
-  const { firstName, lastName, email, password, roleId, status } = data;
-  const updateData: any = {
-    firstName,
-    lastName,
-    email,
-    roleId: roleId ? Number(roleId) : null,
-    status,
-    updatedAt: db.fn.now(),
+  const insertData: any = {
+    firstName: data.firstName,
+    lastName: data.lastName,
+    email: data.email,
+    phone: data.phone || null,
+    status: data.status || "active",
+    role: roleName,
+    roleId: data.roleId ? Number(data.roleId) : null,
+    profileImage: data.imagePath || null,
+    password: hashedPassword,
   };
 
-  if (password) updateData.password = await hashPassword(password);
-  if (file) updateData.profileImage = `/assets/images/${file.filename}`;
+  const [id] = await db("users").insert(insertData);
+  const user = await db("users").where({ id }).first();
 
-  await db("users").where({ id }).update(updateData);
-  const updated = await getUserByIdService(id);
-  return updated;
+  return { user, tempPassword };
 };
 
+// ----------------------------
+// Update User
+// ----------------------------
+export const updateUserService = async (id: number, data: any) => {
+  if (data.roleId) {
+    const roleRow = await db("roles").where({ id: Number(data.roleId) }).first();
+    if (roleRow) data.role = roleRow.role;
+  }
+
+  if (data.imagePath) data.profileImage = data.imagePath;
+
+  await db("users").where({ id }).update({ ...data, updatedAt: db.fn.now() });
+  return db("users").where({ id }).first();
+};
+
+// ----------------------------
+// Update User Status
+// ----------------------------
 export const updateUserStatusService = async (id: number, status: string) => {
   await db("users").where({ id }).update({ status, updatedAt: db.fn.now() });
-  const updated = await getUserByIdService(id);
-  return updated;
+  return db("users").where({ id }).first();
 };
 
+// ----------------------------
+// Login User
+// ----------------------------
+export const loginUserService = async (email: string, password: string) => {
+  const user = await db("users").where({ email }).first();
+  if (!user) throw new Error("Invalid email or password");
+
+  const validPassword = await bcrypt.compare(password, user.password);
+  if (!validPassword) throw new Error("Invalid email or password");
+
+  if (user.status !== "active") throw new Error("User is inactive");
+
+  return user;
+};
+
+// ----------------------------
+// Get Current User
+// ----------------------------
 export const getMeService = async (id: number) => {
-  const row = await db("users")
-    .leftJoin("roles", "users.roleId", "roles.id")
-    .select("users.id", "users.firstName", "users.lastName", "users.email", "roles.role as role", "users.profileImage as profileImage", "users.status")
-    .where("users.id", id)
-    .first();
+  return db("users").where({ id }).first();
+};
 
-  if (!row) throw new Error("User not found");
-  return row;
+// ----------------------------
+// Delete User (hard delete + image cleanup)
+// ----------------------------
+export const deleteUserService = async (id: number | string) => {
+  const userId = Number(id);
+  if (isNaN(userId)) {
+    console.log("Invalid user ID provided to service:", id);
+    return null;
+  }
+
+  console.log("Trying to delete user ID:", userId);
+
+  const user = await db("users").where({ id: userId }).first();
+  if (!user) {
+    console.log("User not found in DB for ID:", userId);
+    return null;
+  }
+
+  // 🧹 Remove profile image if exists
+  if (user.profileImage) {
+    const imagePath = path.join(__dirname, "../../assets", user.profileImage.replace(/^\//, ""));
+    if (fs.existsSync(imagePath)) {
+      fs.unlinkSync(imagePath);
+      console.log("Deleted profile image for user ID:", userId);
+    }
+  }
+
+  await db("users").where({ id: userId }).del();
+  console.log("User deleted successfully from DB ID:", userId);
+
+  return true;
 };
 
 
 
-// src/services/user.service.ts
+
+
+
+
+
 // import db from "../../connection";
-// import { hashPassword } from "../utils/hashPassword";
-// import { comparePassword } from "../utils/hashPassword";
-// import { generateToken } from "../utils/generateToken";
+// import bcrypt from "bcrypt";
+// import jwt from "jsonwebtoken";
 
-// /* ---------------------------
-//    👤 Create First Admin
-// ---------------------------- */
-// export const createFirstAdminService = async (data: any) => {
-//   const { firstName, lastName, email, password, role } = data;
-//   const hashedPassword = await hashPassword(password);
+// // ----------------------------
+// // Generate JWT
+// // ----------------------------
+// export const generateToken = (user: any) => {
+//   return jwt.sign(
+//     { id: user.id, role: user.role, email: user.email },
+//     process.env.JWT_SECRET as string,
+//     { expiresIn: "1d" }
+//   );
+// };
 
-//   const insertedId = await db("users").insert({
-//     firstName,
-//     lastName,
-//     email,
+// // ----------------------------
+// // Create First Admin
+// // ----------------------------
+// export const createFirstAdminDb = async (data: any) => {
+//   const hashedPassword = await bcrypt.hash(data.password, 10);
+//   const [id] = await db("users").insert({
+//     ...data,
 //     password: hashedPassword,
-//     roleId: role, // Assuming role is roleId here
+//     role: "admin",
+//     roleId: null,
 //     status: "active",
 //   });
-
-//   const user = await db("users")
-//     .leftJoin("roles", "users.roleId", "roles.id")
-//     .select("users.id", "users.firstName", "users.lastName", "users.email", "users.status", "roles.role as role")
-//     .where("users.id", insertedId[0])
-//     .first();
-
-//   return user;
+//   return db("users").where({ id }).first();
 // };
 
-// /* ---------------------------
-//    👤 Login User
-// ---------------------------- */
-// export const loginUserService = async (email: string, password: string) => {
-//   const user = await db("users")
+// // ----------------------------
+// // Get All Users (Newest First)
+// // ----------------------------
+// export const getAllUsersDb = async (search?: string, column?: string) => {
+//   let query = db("users")
 //     .leftJoin("roles", "users.roleId", "roles.id")
-//     .select("users.*", "roles.role as role")
-//     .where("users.email", email)
-//     .first();
+//     .select(
+//       "users.id",
+//       "users.firstName",
+//       "users.lastName",
+//       "users.email",
+//       "users.phone",
+//       "roles.role as role",
+//       "users.status",
+//       "users.profileImage",
+//       "users.createdAt"
+//     )
+//     .orderBy("users.createdAt", "desc"); // NEWEST first
 
-//   if (!user) throw new Error("User not found");
+//   if (search && column) {
+//     if (column === "status") {
+//       query = query.where(`users.${column}`, search.toLowerCase());
+//     } else {
+//       query = query.where(`users.${column}`, "like", `%${search}%`);
+//     }
+//   }
 
-//   const isMatch = await comparePassword(password, user.password);
-//   if (!isMatch) throw new Error("Invalid credentials");
-
-//   const token = generateToken({ id: user.id, role: user.role });
-//   return { user, token };
+//   return query;
 // };
 
-// /* ---------------------------
-//    👤 Get All Users
-// ---------------------------- */
-// export const getAllUsersService = async () => {
-//   return await db("users")
-//     .leftJoin("roles", "users.roleId", "roles.id")
-//     .select("users.id", "users.firstName", "users.lastName", "users.email", "users.status", "roles.role as role", "users.image");
+// // ----------------------------
+// // Get User by ID
+// // ----------------------------
+// export const getUserByIdDb = async (id: string | number) => {
+//   return db("users").where({ id: Number(id) }).first();
 // };
 
-// /* ---------------------------
-//    👤 Get User By ID
-// ---------------------------- */
-// export const getUserByIdService = async (id: number) => {
-//   return await db("users")
-//     .leftJoin("roles", "users.roleId", "roles.id")
-//     .select("users.id", "users.firstName", "users.lastName", "users.email", "users.status", "roles.role as role", "users.image")
-//     .where("users.id", id)
-//     .first();
-// };
+// // ----------------------------
+// // Create User
+// // ----------------------------
+// export const createUserDb = async (data: any) => {
+//   const existing = await db("users").where({ email: data.email }).first();
+//   if (existing) throw new Error("User already exists");
 
-// /* ---------------------------
-//    👤 Create User
-// ---------------------------- */
-// export const createUserService = async (data: any, file?: Express.Multer.File) => {
-//   const { firstName, lastName, email, password, role } = data;
-//   const hashedPassword = await hashPassword(password);
-//   const image = file?.filename || null;
+//   const tempPassword = Math.random().toString(36).slice(-8);
+//   const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-//   const insertedId = await db("users").insert({
-//     firstName,
-//     lastName,
-//     email,
+//   let roleName: string | null = null;
+//   if (data.roleId) {
+//     const roleRow = await db("roles").where({ id: Number(data.roleId) }).first();
+//     if (roleRow) roleName = roleRow.role;
+//   }
+
+//   const insertData: any = {
+//     firstName: data.firstName,
+//     lastName: data.lastName,
+//     email: data.email,
+//     phone: data.phone || null,
+//     status: data.status || "active",
+//     role: roleName,
+//     roleId: data.roleId ? Number(data.roleId) : null,
+//     profileImage: data.imagePath || null,
 //     password: hashedPassword,
-//     roleId: role,
-//     status: "active",
-//     image,
+//   };
+
+//   const [id] = await db("users").insert(insertData);
+//   const user = await db("users").where({ id }).first();
+//   return { user, tempPassword };
+// };
+
+// // ----------------------------
+// // Update User
+// // ----------------------------
+// export const updateUserDb = async (id: string | number, data: any) => {
+//   if (data.roleId) {
+//     const roleRow = await db("roles").where({ id: Number(data.roleId) }).first();
+//     if (roleRow) data.role = roleRow.role;
+//   }
+
+//   if (data.imagePath) data.profileImage = data.imagePath;
+
+//   await db("users").where({ id: Number(id) }).update({ ...data, updatedAt: db.fn.now() });
+//   return db("users").where({ id: Number(id) }).first();
+// };
+
+// // ----------------------------
+// // Update User Status
+// // ----------------------------
+// export const updateUserStatusDb = async (id: string | number, status: string) => {
+//   await db("users").where({ id: Number(id) }).update({ status, updatedAt: db.fn.now() });
+//   return db("users").where({ id: Number(id) }).first();
+// };
+
+// // ----------------------------
+// // Login User
+// // ----------------------------
+// export const loginUserDb = async (email: string, password: string) => {
+//   const user = await db("users").where({ email }).first();
+//   if (!user) throw new Error("Invalid email or password");
+
+//   const validPassword = await bcrypt.compare(password, user.password);
+//   if (!validPassword) throw new Error("Invalid email or password");
+
+//   if (user.status !== "active") throw new Error("User is inactive");
+
+//   return user;
+// };
+
+// // ----------------------------
+// // Get Current User
+// // ----------------------------
+// export const getMeDb = async (id: number) => {
+//   return db("users").where({ id }).first();
+// };
+
+
+
+
+
+
+
+
+// import db from "../../connection";
+// import bcrypt from "bcrypt";
+
+// // ----------------------------
+// // Create first admin
+// // ----------------------------
+// export const createFirstAdminDb = async (data: any) => {
+//   const hashedPassword = await bcrypt.hash(data.password, 10);
+//   const [id] = await db("users").insert({
+//     ...data,
+//     password: hashedPassword,
+//     role: "admin",
 //   });
-
-//   const user = await db("users")
-//     .leftJoin("roles", "users.roleId", "roles.id")
-//     .select("users.id", "users.firstName", "users.lastName", "users.email", "users.status", "roles.role as role", "users.image")
-//     .where("users.id", insertedId[0])
-//     .first();
-
+//   const user = await db("users").where({ id }).first();
 //   return user;
 // };
 
-// /* ---------------------------
-//    👤 Update User
-// ---------------------------- */
-// export const updateUserService = async (id: number, data: any, file?: Express.Multer.File) => {
-//   const { firstName, lastName, email, password, role } = data;
-//   const updateData: any = { firstName, lastName, email, roleId: role };
-
-//   if (password) updateData.password = await hashPassword(password);
-//   if (file?.filename) updateData.image = file.filename;
-
-//   await db("users").where({ id }).update(updateData);
-
-//   const user = await db("users")
-//     .leftJoin("roles", "users.roleId", "roles.id")
-//     .select("users.id", "users.firstName", "users.lastName", "users.email", "users.status", "roles.role as role", "users.image")
-//     .where("users.id", id)
-//     .first();
-
-//   return user;
-// };
-
-// /* ---------------------------
-//    👤 Update User Status
-// ---------------------------- */
-// export const updateUserStatusService = async (id: number, status: string) => {
-//   await db("users").where({ id }).update({ status });
-
-//   const user = await db("users")
-//     .leftJoin("roles", "users.roleId", "roles.id")
-//     .select("users.id", "users.firstName", "users.lastName", "users.email", "users.status", "roles.role as role", "users.image")
-//     .where("users.id", id)
-//     .first();
-
-//   return user;
-// };
-
-// /* ---------------------------
-//    👤 Get Current Logged-in User
-// ---------------------------- */
-// export const getMeService = async (id: number) => {
-//   const user = await db("users")
-//     .leftJoin("roles", "users.roleId", "roles.id")
-//     .select("users.id", "users.firstName", "users.lastName", "users.email", "users.status", "roles.role as role", "users.image")
-//     .where("users.id", id)
-//     .first();
-
-//   if (!user) throw new Error("User not found");
-//   return user;
-// };
-
-// /* ---------------------------
-//    👤 Logout User
-// ---------------------------- */
-// export const logoutUserService = async () => {
-//   return { message: "Logged out successfully" };
-// };
-
-
-
-
-// import db from "../../connection";
-// import { hashPassword } from "../utils/hashPassword";
-// import { comparePassword } from "../utils/hashPassword";
-// import { generateToken } from "../utils/generateToken";
-
-// // ✅ Create first admin
-// export const createFirstAdminService = async (data: any) => {
-//   const { firstName, lastName, email, password } = data;
-
-//   const hashedPassword = await hashPassword(password);
-
-//   const [admin] = await db("users").insert(
-//     {
-//       firstName,
-//       lastName,
-//       email,
-//       password: hashedPassword,
-//       role: "admin",
-//       status: "active",
-//     },
-//     ["id", "firstName", "lastName", "email", "role", "status"]
-//   );
-
-//   return admin;
-// };
-
-// // ✅ Login user
-// export const loginUserService = async (data: any) => {
-//   const { email, password } = data;
-
+// // ----------------------------
+// // Login user
+// // ----------------------------
+// export const loginUserDb = async (email: string, password: string) => {
 //   const user = await db("users").where({ email }).first();
-//   if (!user) throw new Error("User not found");
+//   if (!user) throw new Error("Invalid email or password");
 
-//   const isMatch = await comparePassword(password, user.password);
-//   if (!isMatch) throw new Error("Invalid password");
+//   const validPassword = await bcrypt.compare(password, user.password);
+//   if (!validPassword) throw new Error("Invalid email or password");
 
-//   const token = generateToken({ id: user.id, role: user.role });
-
-//   // Return user info + token
-//   return { user, token };
-// };
-
-// // ✅ Logout user
-// export const logoutUserService = async (req: any) => {
-//   req.res?.clearCookie("token");
-//   return { message: "Logged out successfully" };
-// };
-
-// // ✅ Get current logged-in user
-// export const getMeService = async (userId: number) => {
-//   const user = await db("users").where({ id: userId }).first();
-//   return user;
-// };
-
-// // ✅ Get all users
-// export const getAllUsersService = async () => {
-//   return await db("users").select("id", "firstName", "lastName", "email", "role", "status");
-// };
-
-// // ✅ Get single user by ID
-// export const getUserByIdService = async (id: number) => {
-//   return await db("users").where({ id }).first();
-// };
-
-// // ✅ Create user
-// export const createUserService = async (data: any, file?: Express.Multer.File) => {
-//   const { firstName, lastName, email, password, role } = data;
-//   const hashedPassword = await hashPassword(password);
-
-//   const image = file?.filename || null;
-
-//   const [user] = await db("users").insert(
-//     {
-//       firstName,
-//       lastName,
-//       email,
-//       password: hashedPassword,
-//       role,
-//       image,
-//       status: "active",
-//     },
-//     ["id", "firstName", "lastName", "email", "role", "status", "image"]
-//   );
+//   if (user.status !== "active") throw new Error("User is inactive");
 
 //   return user;
 // };
 
-// // ✅ Update user
-// export const updateUserService = async (id: number, data: any, file?: Express.Multer.File) => {
-//   const { firstName, lastName, email, password, role } = data;
-
-//   const updateData: any = { firstName, lastName, email, role };
-//   if (password) updateData.password = await hashPassword(password);
-//   if (file?.filename) updateData.image = file.filename;
-
-//   const [user] = await db("users")
-//     .where({ id })
-//     .update(updateData, ["id", "firstName", "lastName", "email", "role", "status", "image"]);
-
-//   return user;
+// // ----------------------------
+// // Get current user
+// // ----------------------------
+// export const getMeDb = async (id: number) => {
+//   return db("users").where({ id }).first();
 // };
 
-// // ✅ Update user status
-// export const updateUserStatusService = async (id: number, status: string) => {
-//   const [user] = await db("users").where({ id }).update({ status }, ["id", "status"]);
-//   return user;
+// // ----------------------------
+// // Create new user
+// // ----------------------------
+// export const createUserDb = async (data: any) => {
+//   // Generate a random temporary password
+//   const tempPassword = Math.random().toString(36).slice(-8);
+//   const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+//   // Resolve role name
+//   if (data.roleId) {
+//     const roleRow = await db("roles").where({ id: Number(data.roleId) }).first();
+//     if (roleRow) data.role = roleRow.role;
+//   }
+
+//   if (!data.status) data.status = "active";
+//   if (data.imagePath) data.profileImage = data.imagePath;
+
+//   const insertData: any = {
+//     firstName: data.firstName,
+//     lastName: data.lastName,
+//     email: data.email,
+//     phone: data.phone || null,
+//     status: data.status,
+//     role: data.role || null,
+//     profileImage: data.profileImage || null,
+//     password: hashedPassword,
+//   };
+
+//   const [id] = await db("users").insert(insertData);
+
+//   const user = await db("users").where({ id }).first();
+
+//   // Include tempPassword so controller can send in email
+//   return { ...user, tempPassword };
 // };
+
+// // ----------------------------
+// // Update user
+// // ----------------------------
+// export const updateUserDb = async (id: string | number, data: any) => {
+//   if (data.roleId) {
+//     const roleRow = await db("roles").where({ id: Number(data.roleId) }).first();
+//     if (roleRow) data.role = roleRow.role;
+//   }
+//   if (data.imagePath) data.profileImage = data.imagePath;
+
+//   await db("users").where({ id: Number(id) }).update({ ...data, updatedAt: db.fn.now() });
+//   return db("users").where({ id: Number(id) }).first();
+// };
+
+// // ----------------------------
+// // Update user status
+// // ----------------------------
+// export const updateUserStatusDb = async (id: string | number, status: string) => {
+//   await db("users").where({ id: Number(id) }).update({ status, updatedAt: db.fn.now() });
+//   return db("users").where({ id: Number(id) }).first();
+// };
+
+// // ----------------------------
+// // Get all users
+// // ----------------------------
+// export const getAllUsersDb = async (search?: string, column?: string) => {
+//   let query = db("users").select("*").orderBy("id", "asc");
+
+//   if (search && column) {
+//     if (column === "status") {
+//       query = query.where(column, search.toLowerCase());
+//     } else {
+//       query = query.where(column, "like", `%${search}%`);
+//     }
+//   }
+
+//   return query;
+// };
+
+// // ----------------------------
+// // Get user by ID
+// // ----------------------------
+// export const getUserByIdDb = async (id: string | number) => {
+//   return db("users").where({ id: Number(id) }).first();
+// };
+
+
 
 
 
@@ -440,31 +503,170 @@ export const getMeService = async (id: number) => {
 
 
 // import db from "../../connection";
-// import { comparePassword } from "../utils/hashPassword";
-// import { generateToken } from "../utils/generateToken";
+// import bcrypt from "bcrypt";
+// import { sendMail } from "../utils/mailer";
 
-// interface LoginInput {
-//   email: string;
-//   password: string;
-// }
-
-// export const loginUserService = async ({ email, password }: LoginInput) => {
-//   const user = await db("users").where({ email }).first();
-//   if (!user) throw new Error("User not found");
-
-//   const isMatch = await comparePassword(password, user.password);
-//   if (!isMatch) throw new Error("Invalid credentials");
-
-//   // Return user + token
-//   const token = generateToken({ id: user.id, role: user.role });
-//   return { ...user, token };
+// // ----------------------------
+// // Create first admin
+// // ----------------------------
+// export const createFirstAdminDb = async (data: any) => {
+//   const hashedPassword = await bcrypt.hash(data.password, 10);
+//   const [id] = await db("users").insert({
+//     ...data,
+//     password: hashedPassword,
+//     role: "admin",
+//     roleId: null,
+//     status: "active",
+//   });
+//   return db("users").where({ id }).first();
 // };
 
-// export const getMeService = async (userId: number) => {
-//   const user = await db("users").where({ id: userId }).first();
-//   if (!user) throw new Error("User not found");
+// // ----------------------------
+// // Get all users
+// // ----------------------------
+// export const getAllUsersDb = async (search?: string, column?: string) => {
+//   let query = db("users")
+//     .leftJoin("roles", "users.roleId", "roles.id")
+//     .select(
+//       "users.id",
+//       "users.firstName",
+//       "users.lastName",
+//       "users.email",
+//       "users.phone",
+//       "roles.role as role",
+//       "users.status",
+//       "users.profileImage",
+//       "users.createdAt"
+//     )
+//     .orderBy("users.createdAt", "desc");
+
+//   if (search && column) {
+//     if (column === "status") {
+//       query = query.where(`users.${column}`, search.toLowerCase());
+//     } else {
+//       query = query.where(`users.${column}`, "like", `%${search}%`);
+//     }
+//   }
+
+//   return query;
+// };
+
+// // ----------------------------
+// // Get user by ID
+// // ----------------------------
+// export const getUserByIdDb = async (id: string | number) => {
+//   return db("users")
+//     .leftJoin("roles", "users.roleId", "roles.id")
+//     .select(
+//       "users.id",
+//       "users.firstName",
+//       "users.lastName",
+//       "users.email",
+//       "users.phone",
+//       "roles.role as role",
+//       "users.status",
+//       "users.profileImage"
+//     )
+//     .where("users.id", Number(id))
+//     .first();
+// };
+
+// // ----------------------------
+// // Create new user
+// // ----------------------------
+// export const createUserDb = async (data: any) => {
+//   // Generate random password if not provided
+//   const passwordPlain = data.password || Math.random().toString(36).slice(-8);
+//   const hashedPassword = await bcrypt.hash(passwordPlain, 10);
+
+//   // Resolve role
+//   let role = null;
+//   if (data.roleId) {
+//     const roleRow = await db("roles").where({ id: Number(data.roleId) }).first();
+//     if (roleRow) role = roleRow.role;
+//   }
+
+//   // Default status
+//   const status = data.status || "active";
+
+//   // Image handling
+//   const profileImage = data.imagePath || null;
+
+//   // Insert user
+//   const insertData: any = {
+//     firstName: data.firstName,
+//     lastName: data.lastName,
+//     email: data.email,
+//     phone: data.phone || null,
+//     password: hashedPassword,
+//     role,
+//     roleId: data.roleId ? Number(data.roleId) : null,
+//     status,
+//     profileImage,
+//   };
+
+//   const [id] = await db("users").insert(insertData);
+
+//   // Optionally, send welcome email
+//   const subject = "Your Account Has Been Created";
+//   const html = `
+//     <h3>Hello ${data.firstName},</h3>
+//     <p>Your account has been successfully created.</p>
+//     <p><strong>Email:</strong> ${data.email}</p>
+//     <p><strong>Temporary Password:</strong> ${passwordPlain}</p>
+//     <a href="http://localhost:5173/login">Login Now</a>
+//   `;
+//   await sendMail(data.email, subject, subject, html);
+
+//   return db("users").where({ id }).first();
+// };
+
+// // ----------------------------
+// // Update user
+// // ----------------------------
+// export const updateUserDb = async (id: string | number, data: any) => {
+//   if (data.roleId) {
+//     const roleRow = await db("roles").where({ id: Number(data.roleId) }).first();
+//     if (roleRow) data.role = roleRow.role;
+//   }
+
+//   if (data.imagePath) data.profileImage = data.imagePath;
+
+//   await db("users").where({ id: Number(id) }).update({ ...data, updatedAt: db.fn.now() });
+//   return db("users").where({ id: Number(id) }).first();
+// };
+
+// // ----------------------------
+// // Update user status
+// // ----------------------------
+// export const updateUserStatusDb = async (id: string | number, status: string) => {
+//   await db("users").where({ id: Number(id) }).update({ status, updatedAt: db.fn.now() });
+//   return db("users").where({ id: Number(id) }).first();
+// };
+
+// // ----------------------------
+// // Login user
+// // ----------------------------
+// export const loginUserDb = async (email: string, password: string) => {
+//   const user = await db("users").where({ email }).first();
+//   if (!user) throw new Error("Invalid email or password");
+
+//   const validPassword = await bcrypt.compare(password, user.password);
+//   if (!validPassword) throw new Error("Invalid email or password");
+
 //   return user;
 // };
 
-// Add more functions here as needed (createUser, updateUser, etc.)
+// // ----------------------------
+// // Get current user
+// // ----------------------------
+// export const getMeDb = async (id: number) => {
+//   return db("users").where({ id }).first();
+// };
+
+
+
+
+
+
 

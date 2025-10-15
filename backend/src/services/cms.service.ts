@@ -1,150 +1,148 @@
-// src/services/cms.service.ts
 import db from "../../connection";
 
-export const getCmsListService = async (filters?: { id?: string; key?: string; title?: string; status?: string }) => {
-  const { id, key, title, status } = filters || {};
-  let query = db("cms").select(
-    "id",
-    "key",
-    "title",
-    "metaKeyword",
-    "metaTitle",
-    "metaDescription",
-    "status",
-    "content",
-    "createdBy",
-    "updatedBy",
-    "createdAt",
-    "updatedAt",
-    "deletedAt"
-  ).orderBy("id", "desc");
+// ----------------------------
+// Get CMS List (with pagination & filters)
+// ----------------------------
+export const getCmsListService = async (
+  filters: any = {},
+  page: number = 1,
+  limit: number = 10
+) => {
+  const offset = (page - 1) * limit;
 
-  if (id) query = query.where("id", "like", `%${id}%`);
-  if (key) query = query.where("key", "like", `%${key}%`);
-  if (title) query = query.where("title", "like", `%${title}%`);
-  if (status) query = query.where("status", status);
+  // Base query
+  let query = db("cms")
+    .whereNull("deletedAt")
+    .orderBy("id", "desc");
 
-  const rows = await query;
-  return rows;
-};
+  // Apply filters
+  if (filters.id) query = query.where("id", filters.id);
+  if (filters.key) query = query.where("key", "like", `%${filters.key}%`);
+  if (filters.title) query = query.where("title", "like", `%${filters.title}%`);
+  if (filters.status) query = query.where("status", filters.status);
 
-export const getCmsByIdService = async (id: number) => {
-  const row = await db("cms")
-    .select(
-      "id",
-      "key",
-      "title",
-      "metaKeyword",
-      "metaTitle",
-      "metaDescription",
-      "status",
-      "content",
-      "createdBy",
-      "updatedBy",
-      "createdAt",
-      "updatedAt",
-      "deletedAt"
-    )
-    .where({ id })
+  // Total count query (for pagination)
+  const totalRow = await db("cms")
+    .whereNull("deletedAt")
+    .modify((qb) => {
+      if (filters.id) qb.where("id", filters.id);
+      if (filters.key) qb.where("key", "like", `%${filters.key}%`);
+      if (filters.title) qb.where("title", "like", `%${filters.title}%`);
+      if (filters.status) qb.where("status", filters.status);
+    })
+    .count({ count: "id" })
     .first();
-  return row;
+
+  const total = Number(totalRow?.count ?? 0);
+  const totalPages = total > 0 ? Math.ceil(total / limit) : 1;
+
+  // ✅ Adjust the current page if it's beyond the last page
+  const currentPage = page > totalPages ? totalPages : page;
+  const adjustedOffset = (currentPage - 1) * limit;
+
+  // Fetch paginated records
+  const cms = await query.limit(limit).offset(adjustedOffset);
+
+  // Return unified response
+  return { cms, total, totalPages, currentPage };
 };
 
+// ----------------------------
+// Get CMS by ID
+// ----------------------------
+export const getCmsByIdService = async (id: number) => {
+  return db("cms").where({ id }).whereNull("deletedAt").first();
+};
+
+// ----------------------------
+// Create CMS
+// ----------------------------
 export const createCmsService = async (data: any) => {
-  const insertData = {
-    key: data.key,
-    title: data.title || null,
-    metaKeyword: data.metaKeyword || null,
-    metaTitle: data.metaTitle || null,
-    metaDescription: data.metaDescription || null,
-    content: data.content || null,
-    status: data.status || "active",
-    createdBy: data.createdBy ?? null,
-  };
-
-  const inserted = await db("cms").insert(insertData);
-  const id = Array.isArray(inserted) ? inserted[0] : (inserted as number);
-  const created = await getCmsByIdService(Number(id));
-  return created;
+  const [id] = await db("cms").insert(data);
+  return db("cms").where({ id }).first();
 };
 
+// ----------------------------
+// Update CMS
+// ----------------------------
 export const updateCmsService = async (id: number, data: any) => {
-  const updateData: any = {
-    title: data.title,
-    metaKeyword: data.metaKeyword,
-    metaTitle: data.metaTitle,
-    metaDescription: data.metaDescription,
-    content: data.content,
-    status: data.status,
-    updatedBy: data.updatedBy ?? null,
-    updatedAt: db.fn.now(),
-  };
-
-  await db("cms").where({ id }).update(updateData);
-  const updated = await getCmsByIdService(id);
-  return updated;
+  await db("cms").where({ id }).update({ ...data, updatedAt: db.fn.now() });
+  return db("cms").where({ id }).first();
 };
 
-export const deleteCmsService = async (id: number) => {
-  await db("cms")
-    .where({ id })
-    .update({ deletedAt: db.fn.now(), status: "inactive", updatedAt: db.fn.now() });
+// ----------------------------
+// Delete CMS (soft delete)
+// ----------------------------
+export const deleteCmsService = async (id: number, updatedBy?: number | null) => {
+  await db("cms").where({ id }).update({
+    deletedAt: db.fn.now(),
+    status: "inactive",
+    updatedBy: updatedBy || null,
+  });
   return { message: "CMS deleted (soft)" };
 };
 
 
 
 
+
+
+
+
 // import db from "../../connection";
 
-// export const getCmsListService = async () => {
-//   return db("cms").select("*");
+// // for pagination and filters
+// export const getCmsListDb = async (queryParams: any) => {
+//   const { id, key, title, status, page = 1, limit = 10 } = queryParams;
+
+//   let query = db("cms")
+//     .select("*")
+//     .whereNull("deletedAt");
+
+//   if (id) query.andWhere("id", id);
+//   if (key) query.andWhere("key", "like", `%${key}%`);
+//   if (title) query.andWhere("title", "like", `%${title}%`);
+//   if (status) query.andWhere("status", status);
+
+//   // Count total
+//   const totalQuery = query.clone();
+//   const [{ count }] = await totalQuery.count({ count: "*" });
+
+//   // Pagination logic
+//   const offset = (Number(page) - 1) * Number(limit);
+//   const rows = await query
+//     .orderBy("id", "desc")
+//     .limit(Number(limit))
+//     .offset(offset);
+
+//   return {
+//     cms: rows,
+//     totalPages: Math.ceil(Number(count) / Number(limit)) || 1,
+//     currentPage: Number(page),
+//   };
 // };
 
-// export const getCmsByIdService = async (id: number) => {
+// export const getCmsByIdDb = async (id: string) => {
+  
 //   return db("cms").where({ id }).first();
 // };
 
-// export const createCmsService = async (data: any) => {
+// export const createCmsDb = async (data: any) => {
 //   const [id] = await db("cms").insert(data);
-//   return getCmsByIdService(id);
+//   return db("cms").where({ id }).first();
+
 // };
 
-// export const updateCmsService = async (id: number, data: any) => {
-//   await db("cms").where({ id }).update(data);
-//   return getCmsByIdService(id);
+// export const updateCmsDb = async (id: string, data: any) => {
+//   await db("cms").where({ id }).update({ ...data, updatedAt: db.fn.now() });
+//   return db("cms").where({ id }).first();
 // };
 
-// export const deleteCmsService = async (id: number) => {
-//   await db("cms").where({ id }).del();
-//   return { message: "CMS deleted" };
+// export const deleteCmsDb = async (id: string, updatedBy?: number | null) => {
+//   return db("cms").where({ id }).update({
+//     deletedAt: db.fn.now(),
+//     status: "inactive",
+//     updatedBy: updatedBy || null,
+//   });
 // };
 
-
-
-
-
-// import db from "../../connection";
-
-// export const getCmsListService = async () => {
-//   return await db("cms").select("*");
-// };
-
-// export const getCmsByIdService = async (id: number) => {
-//   return await db("cms").where({ id }).first();
-// };
-
-// export const createCmsService = async (data: any) => {
-//   const [cms] = await db("cms").insert(data).returning("*");
-//   return cms;
-// };
-
-// export const updateCmsService = async (id: number, data: any) => {
-//   const [cms] = await db("cms").where({ id }).update(data).returning("*");
-//   return cms;
-// };
-
-// export const deleteCmsService = async (id: number) => {
-//   const [cms] = await db("cms").where({ id }).del().returning("*");
-//   return cms;
-// };

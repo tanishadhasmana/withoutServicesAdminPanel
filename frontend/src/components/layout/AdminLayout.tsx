@@ -1,4 +1,3 @@
-// here integration of both side and top bar
 // src/components/layout/AdminLayout.tsx
 import React from "react";
 import Sidebar from "./Sidebar";

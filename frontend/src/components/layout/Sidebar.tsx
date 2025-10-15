@@ -25,8 +25,16 @@ const Sidebar: React.FC = () => {
     { label: "Roles", to: "/roles", icon: <FaUserShield /> },
     { label: "CMS", to: "/cms", icon: <FaFileAlt /> },
     { label: "FAQ", to: "/faq", icon: <FaQuestionCircle /> },
-    { label: "Email Templates", to: "/email-templates", icon: <FaEnvelopeOpenText /> },
-    { label: "Application Config", to: "/application-config", icon: <FaCogs /> },
+    {
+      label: "Email Templates",
+      to: "/email-templates",
+      icon: <FaEnvelopeOpenText />,
+    },
+    {
+      label: "Application Config",
+      to: "/application-config",
+      icon: <FaCogs />,
+    },
     { label: "Audit Logs", to: "/audit", icon: <FaClipboardList /> },
   ];
 
@@ -46,9 +54,8 @@ const Sidebar: React.FC = () => {
           <FaBars size={20} />
         </button>
       </div>
-
       {/* Profile Section */}
-      <div className="flex flex-col items-center py-4 border-b border-blue-700">
+      <div className="flex items-center gap-5  py-4 px-4 border-b border-blue-700">
         <img
           src={
             user?.profileImage
@@ -56,15 +63,15 @@ const Sidebar: React.FC = () => {
               : "/default-avatar.png"
           }
           alt="User"
-          className="w-12 h-12 rounded-full border object-cover mb-2"
+          className="w-12 h-12 rounded-full border object-cover"
         />
         {isOpen && (
-          <>
+          <div className="flex flex-col">
             <p className="text-sm font-medium text-white">
               {user?.firstName || "User"}
             </p>
             <p className="text-xs text-gray-300">{user?.role}</p>
-          </>
+          </div>
         )}
       </div>
 

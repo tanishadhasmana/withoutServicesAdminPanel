@@ -1,130 +1,61 @@
-// src/services/role.service.ts
 import db from "../../connection";
 
-export const getRolesService = async (filters?: { id?: string; role?: string; description?: string; status?: string }) => {
-  const { id, role, description, status } = filters || {};
+// get roles for pagination
+export const getRoles = async (filters: any = {}, limit?: number, offset?: number) => {
   let query = db("roles")
-    .select("id", "role", "description", "status", "createdBy", "updatedBy", "createdAt", "updatedAt", "deletedAt")
-    .orderBy("id", "asc");
+    .whereNull("deletedAt")
+    .orderBy("id", "desc");
 
-  if (id) query = query.where("id", "like", `%${id}%`);
-  if (role) query = query.where("role", "like", `%${role}%`);
-  if (description) query = query.where("description", "like", `%${description}%`);
-  if (status) query = query.where("status", status);
+  if (filters.id) query = query.where("id", filters.id);
+  if (filters.role) query = query.where("role", "like", `%${filters.role}%`);
+  if (filters.description) query = query.where("description", "like", `%${filters.description}%`);
+  if (filters.status) query = query.where("status", filters.status.toLowerCase());
 
-  const rows = await query;
-  return rows;
-};
-
-export const getRoleByIdService = async (id: number) => {
-  return await db("roles")
-    .select("id", "role", "description", "status", "createdBy", "updatedBy", "createdAt", "updatedAt", "deletedAt")
-    .where({ id })
+  // 🧩 Separate total count
+  const totalRow = await db("roles")
+    .whereNull("deletedAt")
+    .modify((qb) => {
+      if (filters.id) qb.where("id", filters.id);
+      if (filters.role) qb.where("role", "like", `%${filters.role}%`);
+      if (filters.description) qb.where("description", "like", `%${filters.description}%`);
+      if (filters.status) qb.where("status", filters.status.toLowerCase());
+    })
+    .count({ count: "id" })
     .first();
+
+  const total = Number(totalRow?.count ?? 0);
+
+  if (limit !== undefined && offset !== undefined) {
+    query = query.limit(limit).offset(offset);
+  }
+
+  const roles = await query.select("*");
+  return { roles, total };
 };
 
-export const createRoleService = async (data: any) => {
-  const insertData = {
-    role: data.role,
-    description: data.description ?? null,
-    status: data.status || "active",
-    createdBy: data.createdBy ?? null,
-  };
 
-  const inserted = await db("roles").insert(insertData);
-  const id = Array.isArray(inserted) ? inserted[0] : (inserted as number);
-  const created = await getRoleByIdService(Number(id));
-  return created;
+
+export const fetchRoleById = async (id: string) => {
+  return db("roles").where({ id }).first();
 };
 
-export const updateRoleService = async (id: number, data: any) => {
-  const updateData = {
-    role: data.role,
-    description: data.description,
-    status: data.status,
-    updatedBy: data.updatedBy ?? null,
-    updatedAt: db.fn.now(),
-  };
-
-  await db("roles").where({ id }).update(updateData);
-  const updated = await getRoleByIdService(id);
-  return updated;
+export const createRole = async (data: { name: string; status?: string; createdBy?: number | null }) => {
+  const [id] = await db("roles").insert(data);
+  return db("roles").where({ id }).first();
 };
 
-export const deleteRoleService = async (id: number) => {
-  await db("roles").where({ id }).update({ status: "inactive", deletedAt: db.fn.now(), updatedAt: db.fn.now() });
+export const updateRole = async (id: string, data: { name?: string; status?: string; updatedBy?: number | null }) => {
+  await db("roles").where({ id }).update({ ...data, updatedAt: db.fn.now() });
+  return db("roles").where({ id }).first();
+};
+
+export const toggleRoleStatus = async (id: string, status: string) => {
+  await db("roles").where({ id }).update({ status, updatedAt: db.fn.now() });
+  return db("roles").where({ id }).first();
+};
+
+export const deleteRole = async (id: string, updatedBy?: number | null) => {
+  await db("roles").where({ id }).update({ deletedAt: db.fn.now(), updatedBy });
   return { message: "Role deleted (soft)" };
 };
 
-export const toggleRoleStatusService = async (id: number, status: string) => {
-  await db("roles").where({ id }).update({ status, updatedAt: db.fn.now() });
-  const updated = await getRoleByIdService(id);
-  return updated;
-};
-
-
-
-
-// import db from "../../connection";
-
-// export const getRolesService = async () => {
-//   return db("roles").select("*");
-// };
-
-// export const getRoleByIdService = async (id: number) => {
-//   return db("roles").where({ id }).first();
-// };
-
-// export const createRoleService = async (data: any) => {
-//   const [id] = await db("roles").insert(data);
-//   return getRoleByIdService(id);
-// };
-
-// export const updateRoleService = async (id: number, data: any) => {
-//   await db("roles").where({ id }).update(data);
-//   return getRoleByIdService(id);
-// };
-
-// export const deleteRoleService = async (id: number) => {
-//   await db("roles").where({ id }).del();
-//   return { message: "Role deleted" };
-// };
-
-// export const toggleRoleStatusService = async (id: number, status: boolean) => {
-//   await db("roles").where({ id }).update({ status });
-//   return { message: "Role status updated" };
-// };
-
-
-
-
-
-// import db from "../../connection";
-
-// export const getRolesService = async () => {
-//   return await db("roles").select("*");
-// };
-
-// export const getRoleByIdService = async (id: number) => {
-//   return await db("roles").where({ id }).first();
-// };
-
-// export const createRoleService = async (data: any) => {
-//   const [role] = await db("roles").insert(data).returning("*");
-//   return role;
-// };
-
-// export const updateRoleService = async (id: number, data: any) => {
-//   const [role] = await db("roles").where({ id }).update(data).returning("*");
-//   return role;
-// };
-
-// export const deleteRoleService = async (id: number) => {
-//   const [role] = await db("roles").where({ id }).del().returning("*");
-//   return role;
-// };
-
-// export const toggleRoleStatusService = async (id: number, status: string) => {
-//   const [role] = await db("roles").where({ id }).update({ status }).returning("*");
-//   return role;
-// };
