@@ -1,10 +1,20 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router-dom";
 import PageHeader from "../../components/layout/PageHeader";
 import toast, { Toaster } from "react-hot-toast";
-import { addRole, getRoleById, updateRole } from "../../services/roleService";
+import {
+  addRole,
+  getRoleById,
+  updateRole,
+  getAllPermissions,
+  getRolePermissions,
+  updateRolePermissions,
+} from "../../services/roleService";
 import type { RoleFormData } from "../../types/Role";
+import PermissionMatrix from "../../components/common/PermissionMatrix";
+import type { PermissionItem } from "../../components/common/PermissionMatrix";
+
 
 const AddRole: React.FC = () => {
   const nav = useNavigate();
@@ -21,7 +31,16 @@ const AddRole: React.FC = () => {
     defaultValues: { status: "active" },
   });
 
-  // Prefill form if editing
+  // ------------------------------
+  // ✅ Local state (typed properly)
+  // ------------------------------
+  const [permissions, setPermissions] = useState<PermissionItem[]>([]);
+  const [selectedPerms, setSelectedPerms] = useState<number[]>([]);
+  const [loadingPerms, setLoadingPerms] = useState<boolean>(false);
+
+  // ------------------------------
+  // ✅ Prefill role data if editing
+  // ------------------------------
   useEffect(() => {
     if (!editing || !id) return;
 
@@ -40,28 +59,81 @@ const AddRole: React.FC = () => {
     fetchRole();
   }, [editing, id, setValue]);
 
-  const onSubmit = async (data: RoleFormData) => {
+  // ------------------------------
+  // ✅ Fetch permissions (all + assigned)
+  // ------------------------------
+useEffect(() => {
+  const fetchPermissions = async () => {
+    setLoadingPerms(true);
     try {
+      const all: PermissionItem[] = await getAllPermissions();
+      setPermissions(all);
+
       if (editing && id) {
-        await updateRole(Number(id), data);
-        toast.success("Role updated successfully ✅");
-      } else {
-        await addRole(data);
-        toast.success("Role added successfully ✅");
+        const assignedIds: number[] = await getRolePermissions(Number(id));
+        setSelectedPerms(assignedIds); // already number[]
       }
-      nav("/roles");
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to save role ❌");
+      console.error("Failed to fetch permissions:", err);
+    } finally {
+      setLoadingPerms(false);
     }
   };
 
-  // ✅ Prevent spaces-only or extra spaces input
+  fetchPermissions();
+}, [editing, id]);
+
+
+  // ------------------------------
+  // ✅ Handle permission toggle
+  // ------------------------------
+  const handleTogglePermission = (permId: number) => {
+    setSelectedPerms((prev) =>
+      prev.includes(permId)
+        ? prev.filter((id) => id !== permId)
+        : [...prev, permId]
+    );
+  };
+
+  // ------------------------------
+  // ✅ Handle form submission
+  // ------------------------------
+  const onSubmit = async (data: RoleFormData) => {
+    try {
+      let roleId: number;
+
+      if (editing && id) {
+        await updateRole(Number(id), data);
+        roleId = Number(id);
+        toast.success("Role updated successfully ✅");
+      } else {
+        const newRole = await addRole(data);
+        roleId = newRole.id;
+        toast.success("Role added successfully ✅");
+      }
+
+      // ⬇️ Save selected permissions
+      await updateRolePermissions(roleId, selectedPerms);
+      toast.success("Permissions updated ✅");
+
+      nav("/roles");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save role or permissions ❌");
+    }
+  };
+
+  // ------------------------------
+  // ✅ Trim spaces from input fields
+  // ------------------------------
   const handleNoSpaceInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const cleaned = e.target.value.replace(/^\s+|\s+$/g, ""); // trim spaces
     setValue(e.target.name as keyof RoleFormData, cleaned);
   };
 
+  // ------------------------------
+  // ✅ JSX
+  // ------------------------------
   return (
     <div>
       <PageHeader title={editing ? "Edit Role" : "Add Role"} />
@@ -69,7 +141,7 @@ const AddRole: React.FC = () => {
 
       <form
         onSubmit={handleSubmit(onSubmit)}
-        className="bg-white p-8 rounded shadow-md max-w-2xl mx-auto mt-6"
+        className="bg-white p-8 rounded shadow-md max-w-4xl mx-auto mt-6"
       >
         {/* Role Name */}
         <div className="mb-4">
@@ -114,7 +186,7 @@ const AddRole: React.FC = () => {
         </div>
 
         {/* Status */}
-        <div className="mb-4">
+        <div className="mb-6">
           <label className="block text-sm font-medium text-gray-700">
             Status <span className="text-red-500">*</span>
           </label>
@@ -132,8 +204,21 @@ const AddRole: React.FC = () => {
           )}
         </div>
 
+        {/* Permission Matrix */}
+        {loadingPerms ? (
+          <p className="text-center text-gray-500 my-4">
+            Loading permissions...
+          </p>
+        ) : (
+          <PermissionMatrix
+            permissions={permissions}
+            selectedIds={selectedPerms}
+            onToggle={handleTogglePermission}
+          />
+        )}
+
         {/* Buttons */}
-        <div className="flex gap-3">
+        <div className="flex gap-3 mt-6">
           <button
             type="submit"
             disabled={isSubmitting}
@@ -155,4 +240,6 @@ const AddRole: React.FC = () => {
 };
 
 export default AddRole;
+
+
 

@@ -215,12 +215,14 @@ export const loginUser = async (req: Request, res: Response) => {
     const user = await loginUserService(email, password);
     const token = generateToken(user);
 
-    res.cookie("token", token, {
-      httpOnly: false,
-      sameSite: "lax",
-      secure: false,
-      maxAge: 24 * 60 * 60 * 1000,
-    });
+   res.cookie("token", token, {
+  httpOnly: true,                // prevents JS access
+  secure: process.env.NODE_ENV === "production", // use HTTPS in prod
+  sameSite: "lax",               // allows frontend on same domain
+  maxAge: 24 * 60 * 60 * 1000,   // 1 day
+  path: "/",                     // accessible across all routes
+});
+
 
     await logActivity({
       userId: user.id,
@@ -266,11 +268,12 @@ export const getMe = async (req: Request, res: Response) => {
       activity: "Viewed own profile",
     });
 
-    res.status(200).json(user);
+    res.status(200).json({ user }); // ✅ fixed response
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
 };
+
 
 // ----------------------------
 // Delete User

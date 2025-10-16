@@ -42,9 +42,9 @@ const Sidebar: React.FC = () => {
     <aside
       className={`${
         isOpen ? "w-64" : "w-20"
-      } bg-blue-800 text-white h-screen transition-all duration-200 flex flex-col`}
+      } bg-blue-800 text-white flex flex-col h-full min-h-screen overflow-y-auto transition-all duration-200`}
     >
-      {/* Header / Toggle Button */}
+      {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-blue-700">
         {isOpen && <h1 className="text-lg font-semibold">Admin Panel</h1>}
         <button
@@ -54,8 +54,9 @@ const Sidebar: React.FC = () => {
           <FaBars size={20} />
         </button>
       </div>
-      {/* Profile Section */}
-      <div className="flex items-center gap-5  py-4 px-4 border-b border-blue-700">
+
+      {/* Profile */}
+      <div className="flex items-center gap-4 py-4 px-4 border-b border-blue-700">
         <img
           src={
             user?.profileImage
@@ -75,8 +76,8 @@ const Sidebar: React.FC = () => {
         )}
       </div>
 
-      {/* Menu Links */}
-      <nav className="p-2 flex-1">
+      {/* Menu */}
+      <nav className="p-2 flex-1 overflow-y-auto">
         {menu.map((item) => (
           <Link
             key={item.to}
@@ -91,6 +92,7 @@ const Sidebar: React.FC = () => {
         ))}
       </nav>
     </aside>
+
   );
 };
 

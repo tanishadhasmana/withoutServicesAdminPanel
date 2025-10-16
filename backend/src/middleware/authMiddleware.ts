@@ -1,7 +1,3 @@
-
-
-
-
 // ---- only middleware file
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
