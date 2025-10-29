@@ -3,18 +3,20 @@ import db from "../../connection";
 // ✅ Type declaration here (no separate types folder needed)
 export type ConfigStatus = "active" | "inactive";
 
-// Fetch all configs with optional status filter for pagination
 export const fetchConfigList = async (
   status?: ConfigStatus | "all",
   page = 1,
-  limit = 10
+  limit = 10,
+  sortBy?: string,
+  order?: "asc" | "desc"
 ) => {
   const offset = (page - 1) * limit;
 
-  let query = db("application_config")
-    .select("*")
-    .whereNull("deletedAt")
-    .orderBy("createdAt", "desc");
+  const allowedSortCols = ["id", "key", "value", "displayOrder", "status", "createdAt", "updatedAt"];
+  const sortCol = sortBy && allowedSortCols.includes(sortBy) ? sortBy : "createdAt";
+  const sortOrder = order === "asc" ? "asc" : "desc";
+
+  let query = db("application_config").select("*").whereNull("deletedAt").orderBy(sortCol, sortOrder);
 
   if (status && status !== "all") query = query.where({ status });
 
@@ -22,14 +24,13 @@ export const fetchConfigList = async (
     query.clone().limit(limit).offset(offset),
     db("application_config")
       .whereNull("deletedAt")
-      .modify((qb) => {
-        if (status && status !== "all") qb.where({ status });
-      })
+      .modify((qb) => { if (status && status !== "all") qb.where({ status }); })
       .count({ count: "*" }),
   ]);
 
   return { rows, total: Number(count) };
-}; 
+};
+
 
 
 // Fetch single config by ID

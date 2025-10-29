@@ -2,6 +2,27 @@ import api from "../lib/api";
 import type { CMS, CMSFormData, CMSStatus } from "../types/CMS";
 
 // Get paginated CMS list with optional filters
+// export const getCmsList = async ({
+//   id,
+//   key,
+//   title,
+//   status,
+//   page = 1,
+//   limit = 10,
+// }: {
+//   id?: string;
+//   key?: string;
+//   title?: string;
+//   status?: CMSStatus | "";
+//   page?: number;
+//   limit?: number;
+// }) => {
+//   const { data } = await api.get("/cms", {
+//     params: { id, key, title, status, page, limit },
+//   });
+//   return data;
+// };
+
 export const getCmsList = async ({
   id,
   key,
@@ -9,6 +30,8 @@ export const getCmsList = async ({
   status,
   page = 1,
   limit = 10,
+  sortBy,
+  order,
 }: {
   id?: string;
   key?: string;
@@ -16,12 +39,28 @@ export const getCmsList = async ({
   status?: CMSStatus | "";
   page?: number;
   limit?: number;
+  sortBy?: string;
+  order?: "asc" | "desc";
 }) => {
-  const { data } = await api.get("/cms", {
-    params: { id, key, title, status, page, limit },
-  });
+  const params: Record<string, string | number | undefined> = {
+    id,
+    key,
+    title,
+    status,
+    page,
+    limit,
+  };
+
+  if (sortBy) params.sortBy = sortBy;
+  if (order) params.order = order;
+
+  const { data } = await api.get("/cms", { params });
   return data;
 };
+
+
+
+
 
 // Get single CMS by ID
 export const getCmsById = async (id: number): Promise<CMS> => {

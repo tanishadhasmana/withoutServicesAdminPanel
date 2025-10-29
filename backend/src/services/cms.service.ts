@@ -1,19 +1,85 @@
 import db from "../../connection";
 
+const ALLOWED_SORT_COLUMNS = new Set([
+  "id",
+  "key",
+  "title",
+  "createdAt",
+  "updatedAt",
+]);
+
 // ----------------------------
 // Get CMS List (with pagination & filters)
 // ----------------------------
+// export const getCmsListService = async (
+//   filters: any = {},
+//   page: number = 1,
+//   limit: number = 10
+// ) => {
+//   const offset = (page - 1) * limit;
+
+//   // Base query
+//   let query = db("cms")
+//     .whereNull("deletedAt")
+//     .orderBy("id", "desc");
+
+//   // Apply filters
+//   if (filters.id) query = query.where("id", filters.id);
+//   if (filters.key) query = query.where("key", "like", `%${filters.key}%`);
+//   if (filters.title) query = query.where("title", "like", `%${filters.title}%`);
+//   if (filters.status) query = query.where("status", filters.status);
+
+//   // Total count query (for pagination)
+//   const totalRow = await db("cms")
+//     .whereNull("deletedAt")
+//     .modify((qb) => {
+//       if (filters.id) qb.where("id", filters.id);
+//       if (filters.key) qb.where("key", "like", `%${filters.key}%`);
+//       if (filters.title) qb.where("title", "like", `%${filters.title}%`);
+//       if (filters.status) qb.where("status", filters.status);
+//     })
+//     .count({ count: "id" })
+//     .first();
+
+//   const total = Number(totalRow?.count ?? 0);
+//   const totalPages = total > 0 ? Math.ceil(total / limit) : 1;
+
+//   // ✅ Adjust the current page if it's beyond the last page
+//   const currentPage = page > totalPages ? totalPages : page;
+//   const adjustedOffset = (currentPage - 1) * limit;
+
+//   // Fetch paginated records
+//   const cms = await query.limit(limit).offset(adjustedOffset);
+
+//   // Return unified response
+//   return { cms, total, totalPages, currentPage };
+// };
+
 export const getCmsListService = async (
   filters: any = {},
   page: number = 1,
-  limit: number = 10
+  limit: number = 10,
+  sortBy?: string,
+  order?: "asc" | "desc"
 ) => {
   const offset = (page - 1) * limit;
 
-  // Base query
-  let query = db("cms")
-    .whereNull("deletedAt")
-    .orderBy("id", "desc");
+  // Validate sort column & order
+  let sortColumn = "id";
+  let sortOrder: "asc" | "desc" = "desc";
+  if (sortBy && ALLOWED_SORT_COLUMNS.has(sortBy)) {
+    sortColumn = sortBy;
+    if (order && (order === "asc" || order === "desc")) sortOrder = order;
+  }
+
+  // If attempted to sort by status, ignore (same as other pages)
+  if (sortBy === "status") {
+    sortColumn = "id";
+    sortOrder = "desc";
+  }
+
+  // Base query with sorting
+  let query = db("cms").whereNull("deletedAt").orderBy(sortColumn, sortOrder);
 
   // Apply filters
   if (filters.id) query = query.where("id", filters.id);
@@ -21,7 +87,7 @@ export const getCmsListService = async (
   if (filters.title) query = query.where("title", "like", `%${filters.title}%`);
   if (filters.status) query = query.where("status", filters.status);
 
-  // Total count query (for pagination)
+  // Total count (same filters)
   const totalRow = await db("cms")
     .whereNull("deletedAt")
     .modify((qb) => {
@@ -36,14 +102,13 @@ export const getCmsListService = async (
   const total = Number(totalRow?.count ?? 0);
   const totalPages = total > 0 ? Math.ceil(total / limit) : 1;
 
-  // ✅ Adjust the current page if it's beyond the last page
+  // Adjust page if beyond last
   const currentPage = page > totalPages ? totalPages : page;
   const adjustedOffset = (currentPage - 1) * limit;
 
   // Fetch paginated records
   const cms = await query.limit(limit).offset(adjustedOffset);
 
-  // Return unified response
   return { cms, total, totalPages, currentPage };
 };
 

@@ -48,7 +48,7 @@ const AddApplicationConfig: React.FC = () => {
         setValue("status", data.status);
       } catch (err) {
         console.error(err);
-        toast.error("Failed to load config ❌");
+        toast.error("Failed to load config ");
       } finally {
         setLoading(false);
       }
@@ -61,19 +61,19 @@ const AddApplicationConfig: React.FC = () => {
     try {
       if (editing && id) {
         await updateApplicationConfigById(Number(id), data);
-        toast.success("Configuration updated ✅");
+        toast.success("Configuration updated ");
       } else {
         await createApplicationConfig(data);
-        toast.success("Configuration added ✅");
+        toast.success("Configuration added ");
       }
       nav("/application-config");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save configuration ❌");
+      toast.error("Failed to save configuration ");
     }
   };
 
-  // 🚫 Block spaces in all text inputs
+  //to Block spaces in all text inputs
   const preventSpaceInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === " ") e.preventDefault();
   };
@@ -97,12 +97,13 @@ const AddApplicationConfig: React.FC = () => {
           <p className="text-center text-gray-500">Loading...</p>
         ) : (
           <>
-            {/* ✅ Key Field */}
+
             <div>
               <label className="block text-sm font-medium mb-1">
                 Key <span className="text-red-500">*</span>
               </label>
               <input
+              autoFocus
                 type="text"
                 {...register("key", { required: "Key is required" })}
                 className={`w-full border rounded px-3 py-2 ${
@@ -177,7 +178,7 @@ const AddApplicationConfig: React.FC = () => {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
               >
                 {editing ? "Update Config" : "Save Config"}
               </button>

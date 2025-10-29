@@ -34,7 +34,7 @@ const AddFAQ: React.FC = () => {
     },
   });
 
-  // 🚫 Prevent space typing or pasting
+  // Prevent space typing or pasting
   const preventSpaceInput = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (e.key === " ") e.preventDefault();
   };
@@ -55,7 +55,7 @@ const AddFAQ: React.FC = () => {
           setValue("status", data.status);
         } catch (err) {
           console.error("Failed to fetch FAQ:", err);
-          toast.error("Failed to load FAQ data ❌");
+          toast.error("Failed to load FAQ data");
         }
       };
       fetchFAQ();
@@ -66,15 +66,15 @@ const AddFAQ: React.FC = () => {
     try {
       if (editing && id) {
         await updateFaq(Number(id), data);
-        toast.success("FAQ updated successfully ✅");
+        toast.success("FAQ updated successfully");
       } else {
         await createFaq(data);
-        toast.success("FAQ added successfully ✅");
+        toast.success("FAQ added successfully");
       }
       nav("/faq");
     } catch (err) {
       console.error("Save failed:", err);
-      toast.error("Failed to save FAQ ❌");
+      toast.error("Failed to save FAQ");
     }
   };
 
@@ -94,6 +94,7 @@ const AddFAQ: React.FC = () => {
           </label>
           <input
             type="text"
+            autoFocus
             {...register("question", {
               required: "Question is required",
               maxLength: {
@@ -188,7 +189,7 @@ const AddFAQ: React.FC = () => {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
           >
             {editing ? "Update FAQ" : "Save"}
           </button>

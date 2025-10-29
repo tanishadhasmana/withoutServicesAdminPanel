@@ -2,12 +2,13 @@
 import api from "../lib/api";
 import type { User } from "../types/User";
 
-// ✅ Get all users (supports search, column, and pagination)
 export const getUsers = async (
   search?: string,
   column?: string,
   page: number = 1,
-  limit: number = 10
+  limit: number = 10,
+  sortBy?: string,
+  sortOrder?: "asc" | "desc"
 ): Promise<{
   users: User[];
   total: number;
@@ -18,10 +19,17 @@ export const getUsers = async (
   if (search && column) {
     url += `&search=${encodeURIComponent(search)}&column=${column}`;
   }
+  if (sortBy) {
+    url += `&sortBy=${encodeURIComponent(sortBy)}`;
+  }
+  if (sortOrder) {
+    url += `&sortOrder=${sortOrder}`;
+  }
 
   const res = await api.get(url, { withCredentials: true });
   return res.data;
 };
+
 
 // ✅ Get user by ID
 export const getUserById = async (id: number): Promise<User> => {

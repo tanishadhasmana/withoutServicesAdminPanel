@@ -5,24 +5,26 @@ import { logActivity } from "../services/audit.service";
 // ✅ Local type declaration
 type ConfigStatus = "active" | "inactive";
 
-// Get all configs--- for pagination
 export const getConfigList = async (req: Request, res: Response) => {
   try {
     const status = (req.query.status as ConfigStatus | "all") || "all";
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
 
-    const { rows, total } = await fetchConfigList(status, page, limit);
+    // read sorting params from query (sortBy + sortOrder)
+    const sortBy = (req.query.sortBy as string) || undefined;
+    const sortOrder = (req.query.sortOrder as "asc" | "desc") || undefined;
+
+    const { rows, total } = await fetchConfigList(status, page, limit, sortBy, sortOrder);
     const totalPages = Math.ceil(total / limit);
 
     await logActivity({
       userId: req.user?.id || null,
       username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
       type: "View",
-      activity: `Viewed Config List (page: ${page}, limit: ${limit})`,
+      activity: `Viewed Config List (page: ${page}, limit: ${limit}, sort: ${sortBy || "id"} ${sortOrder || "desc"})`,
     });
 
-    // 🟢 Return pagination-friendly data
     res.json({
       data: rows,
       total,
@@ -42,7 +44,7 @@ export const getConfigList = async (req: Request, res: Response) => {
 export const getConfigById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const config = fetchConfigById(id);
+    const config = await fetchConfigById(id);
 
     // 🟢 Log user activity
     await logActivity({

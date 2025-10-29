@@ -39,12 +39,32 @@ export const updateRolePermissions = async (
 
 // -----------------------------
 // Roles API helpers (unchanged)
-// -----------------------------
+// -------------------change 3
+// export const getRoles = async (
+//   column?: RoleSearchKey,
+//   value?: string,
+//   page: number = 1,
+//   limit: number = 10
+// ): Promise<{
+//   roles: Role[];
+//   total: number;
+//   totalPages: number;
+//   currentPage: number;
+// }> => {
+//   const params: Record<string, string | number> = { page, limit };
+//   if (column && value) params[column] = value;
+
+//   const res = await api.get("/roles", { params, withCredentials: true });
+//   return res.data;
+// };
+
 export const getRoles = async (
   column?: RoleSearchKey,
   value?: string,
   page: number = 1,
-  limit: number = 10
+  limit: number = 10,
+  sortBy?: string,
+  order?: "asc" | "desc"
 ): Promise<{
   roles: Role[];
   total: number;
@@ -53,10 +73,14 @@ export const getRoles = async (
 }> => {
   const params: Record<string, string | number> = { page, limit };
   if (column && value) params[column] = value;
+  if (sortBy) params.sortBy = sortBy;
+  if (order) params.order = order;
 
   const res = await api.get("/roles", { params, withCredentials: true });
   return res.data;
 };
+
+
 
 export const getRoleById = async (id: number): Promise<Role> => {
   const res = await api.get(`/roles/${id}`);

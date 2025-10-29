@@ -31,7 +31,7 @@ const AddCMS: React.FC = () => {
     },
   });
 
-  // 🚫 Prevent spaces in all inputs/textareas
+  // Prevent spaces in all inputs/textareas
   const preventSpaceInput = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (e.key === " ") e.preventDefault();
   };
@@ -57,7 +57,7 @@ const AddCMS: React.FC = () => {
         setValue("status", data.status);
       } catch (err) {
         console.error("Failed to fetch CMS:", err);
-        toast.error("Failed to load CMS data ❌");
+        toast.error("Failed to load CMS data ");
       }
     };
 
@@ -68,15 +68,15 @@ const AddCMS: React.FC = () => {
     try {
       if (editing && id) {
         await updateCms(Number(id), data);
-        toast.success("CMS updated successfully ✅");
+        toast.success("CMS updated successfully ");
       } else {
         await createCms(data);
-        toast.success("CMS created successfully ✅");
+        toast.success("CMS created successfully ");
       }
       nav("/cms");
     } catch (err) {
       console.error("Save failed:", err);
-      toast.error("Failed to save CMS ❌");
+      toast.error("Failed to save CMS ");
     }
   };
 
@@ -96,6 +96,7 @@ const AddCMS: React.FC = () => {
               Key <span className="text-red-500">*</span>
             </label>
             <input
+            autoFocus
               {...register("key", { required: "Key is required" })}
               onKeyDown={preventSpaceInput}
               onPaste={preventSpacePaste}
@@ -254,7 +255,7 @@ const AddCMS: React.FC = () => {
         <div className="mt-6 flex gap-3">
           <button
             type="submit"
-            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 cursor-pointer"
           >
             {editing ? "Update CMS" : "Add CMS"}
           </button>

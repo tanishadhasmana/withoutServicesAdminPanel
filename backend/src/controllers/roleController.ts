@@ -6,17 +6,24 @@ import {
   updateRole as updateRoleService,
   toggleRoleStatus as toggleRoleStatusService,
   deleteRole as deleteRoleService,
+  getRolesCountService
 } from "../services/role.service";
 import { logActivity } from "../services/audit.service";
 
-// ----------------------------
-// Get Roles (Pagination + Filters)
-// ----------------------------
 export const getRoles = async (req: Request, res: Response) => {
   try {
-    const { id, role, description, status, page = "1", limit = "10" } = req.query;
-    const filters: any = {};
+    const {
+      id,
+      role,
+      description,
+      status,
+      page = "1",
+      limit = "10",
+      sortBy,
+      order
+    } = req.query;
 
+    const filters: any = {};
     if (id) filters.id = id;
     if (role) filters.role = role;
     if (description) filters.description = description;
@@ -26,13 +33,20 @@ export const getRoles = async (req: Request, res: Response) => {
     const limitNum = parseInt(limit as string, 10) || 10;
     const offset = (pageNum - 1) * limitNum;
 
-    const { roles, total } = await getRolesService(filters, limitNum, offset);
+    // pass sorting to service
+    const { roles, total } = await getRolesService(
+      filters,
+      limitNum,
+      offset,
+      sortBy as string | undefined,
+      (order as "asc" | "desc") || undefined
+    );
 
     await logActivity({
       userId: req.user?.id || null,
       username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
       type: "View",
-      activity: `Fetched role list with filters: ${JSON.stringify(filters)} | page: ${pageNum}`,
+      activity: `Fetched role list with filters & sorting`,
     });
 
     return res.json({
@@ -41,11 +55,27 @@ export const getRoles = async (req: Request, res: Response) => {
       totalPages: Math.ceil(total / limitNum),
       currentPage: pageNum,
     });
+
   } catch (err) {
     console.error("Error fetching roles:", err);
     return res.status(500).json({ message: "Failed to fetch roles" });
   }
 };
+
+
+// ----------------------------
+// Get Roles Count
+// ----------------------------
+export const getRolesCount = async (req: Request, res: Response) => {
+  try {
+    const total = await getRolesCountService();
+    return res.json({ total });
+  } catch (err) {
+    console.error("Error getting role count:", err);
+    return res.status(500).json({ message: "Failed to fetch roles count" });
+  }
+};
+
 
 // ----------------------------
 // Get Role by ID

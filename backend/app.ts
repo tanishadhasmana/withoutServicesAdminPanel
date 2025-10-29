@@ -51,12 +51,12 @@ app.use(express.json());
 
 app.use(
   helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" }, // ⬅️ IMPORTANT!
+    crossOriginResourcePolicy: { policy: "cross-origin" }, 
   })
 );
  
 /* ---------------------------
-   🧱 Static Files - Helmet के BAAD
+   🧱 Static Files - after helmet
 ---------------------------- */
 
 

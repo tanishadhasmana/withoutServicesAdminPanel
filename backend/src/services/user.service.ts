@@ -2,7 +2,6 @@ import db from "../../connection";
 import bcrypt from "bcrypt";
 import path from "path";
 import fs from "fs";
-import { logActivity } from "./audit.service";
 
 // ----------------------------
 // Create First Admin
@@ -21,18 +20,41 @@ export const createFirstAdminService = async (data: any) => {
 };
 
 // ----------------------------
-// Get All Users (with pagination & search)
+// Fast user count service
 // ----------------------------
+export const getUsersCountService = async (): Promise<number> => {
+  const result = await db("users").count<{ total: number }>("id as total");
+  // knex returns array like [{ total: '123' }] depending on DB driver
+  const total = result?.[0]?.total ?? 0;
+  return Number(total);
+};
+
 export const getAllUsersService = async (
   search?: string,
   column?: string,
   page: number = 1,
-  limit: number = 10
+  limit: number = 10,
+  sortBy?: string,
+  sortOrder: "asc" | "desc" = "desc",
+  includeCount: boolean = true
 ) => {
   const offset = (page - 1) * limit;
 
-  // 🧱 Base query for users list
-  let baseQuery = db("users")
+  const ALLOWED_SORTS: Record<string, string> = {
+    id: "users.id",
+    firstName: "users.firstName",
+    lastName: "users.lastName",
+    email: "users.email",
+    phone: "users.phone",
+    role: "roles.role",
+    createdAt: "users.createdAt",
+  };
+
+  const sortColumn = sortBy && ALLOWED_SORTS[sortBy] ? ALLOWED_SORTS[sortBy] : "users.createdAt";
+  const order = sortOrder === "asc" ? "asc" : "desc";
+
+  // Base query builder (for rows)
+  const rowsQuery = db("users")
     .leftJoin("roles", "users.roleId", "roles.id")
     .select(
       "users.id",
@@ -44,41 +66,65 @@ export const getAllUsersService = async (
       "users.status",
       "users.profileImage",
       "users.createdAt"
-    );
-
-  // 🧩 Search filter (optional)
-  if (search && column) {
-    const searchColumn = `users.${column}`;
-    if (column === "status") {
-      baseQuery = baseQuery.where(searchColumn, search.toLowerCase());
-    } else {
-      baseQuery = baseQuery.where(searchColumn, "like", `%${search}%`);
-    }
-  }
-
-  // ✅ Consistent count query
-  const countResult = await db("users")
+    )
     .modify((qb) => {
       if (search && column) {
+        // allow searching on status as exact match
+        const searchCol = column === "role" ? "roles.role" : `users.${column}`;
         if (column === "status") {
-          qb.where(`users.${column}`, search.toLowerCase());
+          qb.where(searchCol, search.toLowerCase());
         } else {
-          qb.where(`users.${column}`, "like", `%${search}%`);
+          qb.where(searchCol, "like", `%${search}%`);
         }
       }
     })
-    .count<{ total: number }>("id as total");
-
-  const total = Number(countResult[0]?.total || 0);
-
-  const users = await baseQuery
-    .orderBy("users.createdAt", "desc")
+    .orderBy(sortColumn, order)
     .limit(limit)
     .offset(offset);
 
-  const totalPages = total > 0 ? Math.ceil(total / limit) : 1;
+  // If count requested, build countQuery with same filters
+  let countResult: any = null;
+  if (includeCount) {
+    const countQuery = db("users")
+      .modify((qb) => {
+        if (search && column) {
+          const searchCol = column === "role" ? "roles.role" : `users.${column}`;
+          if (column === "status") {
+            qb.where(searchCol, search.toLowerCase());
+          } else {
+            qb.where(searchCol, "like", `%${search}%`);
+          }
+        }
+      })
+      .count<{ total: number }>("id as total");
 
-  return { users, total, totalPages, currentPage: page };
+    // run both queries in parallel
+    const [usersResult, cnt] = await Promise.all([rowsQuery, countQuery]);
+    countResult = cnt;
+    const users = usersResult || [];
+    const total = Number(countResult?.[0]?.total ?? 0);
+    // at least 1 page for consistent UI even if total is 0
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
+    return {
+      users,
+      total,
+      totalPages,
+      currentPage: page,
+      includeCount,
+    };
+  } else {
+    // count not requested: only run rowsQuery
+    const users = await rowsQuery;
+    // when count not included, signal with -1 so frontend can handle gracefully
+    return {
+      users,
+      total: -1,
+      totalPages: -1,
+      currentPage: page,
+      includeCount,
+    };
+  }
 };
 
 // ----------------------------
@@ -145,7 +191,11 @@ export const updateUserService = async (id: number, data: any) => {
     if (roleRow) data.role = roleRow.role;
   }
 
-  if (data.imagePath) data.profileImage = data.imagePath;
+  // if (data.imagePath) data.profileImage = data.imagePath;
+  if (data.imagePath) {
+  data.profileImage = data.imagePath;   
+}
+
 
   await db("users").where({ id }).update({ ...data, updatedAt: db.fn.now() });
   return db("users").where({ id }).first();
@@ -171,15 +221,75 @@ export const loginUserService = async (email: string, password: string) => {
 
   if (user.status !== "active") throw new Error("User is inactive");
 
-  return user;
+  // 🔹 Fetch role info
+  const role = user.roleId
+    ? await db("roles").where({ id: user.roleId }).first()
+    : null;
+
+  // 🔹 Fetch permissions for the role
+  let permissions: string[] = [];
+  if (role) {
+    const rolePermissions = await db("role_permissions")
+      .join("permissions", "role_permissions.permissionId", "permissions.id")
+      .where("role_permissions.roleId", user.roleId)
+      .select("permissions.name");
+    permissions = rolePermissions.map((p) => p.name);
+  }
+
+  // 🔹 Merge all into one object
+  return {
+    id: user.id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    role: role ? role.role : user.role,
+    roleId: user.roleId,
+    status: user.status,
+    permissions, // ✅ Added here
+  };
 };
 
-// ----------------------------
-// Get Current User
-// ----------------------------
+// fixing as shwoing access denied after refresh
 export const getMeService = async (id: number) => {
-  return db("users").where({ id }).first();
+  // 1) Get user basic info
+  const user = await db("users")
+    .where("users.id", id)
+    .first();
+
+  if (!user) return null;
+
+  // 2) Get role name
+  let roleName = user.role;
+  if (user.roleId) {
+    const roleRow = await db("roles").where({ id: user.roleId }).first();
+    if (roleRow) roleName = roleRow.role;
+  }
+
+  // 3) Get permissions based on role
+  let permissions: string[] = [];
+  if (user.roleId) {
+    const rolePermissions = await db("role_permissions")
+      .join("permissions", "role_permissions.permissionId", "permissions.id")
+      .where("role_permissions.roleId", user.roleId)
+      .select("permissions.name");
+
+    permissions = rolePermissions.map((p) => p.name);
+  }
+
+  // 4) Return final user object
+  return {
+    id: user.id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    role: roleName,
+    roleId: user.roleId,
+    status: user.status,
+    permissions,
+    profileImage: user.profileImage,
+  };
 };
+
 
 // ----------------------------
 // Delete User (hard delete + image cleanup)

@@ -52,7 +52,7 @@ const AddRole: React.FC = () => {
         setValue("status", data.status ?? "active");
       } catch (err) {
         console.error("Failed to fetch role:", err);
-        toast.error("Failed to load role data ❌");
+        toast.error("Failed to load role data");
       }
     };
 
@@ -105,21 +105,21 @@ useEffect(() => {
       if (editing && id) {
         await updateRole(Number(id), data);
         roleId = Number(id);
-        toast.success("Role updated successfully ✅");
+        toast.success("Role updated successfully");
       } else {
         const newRole = await addRole(data);
         roleId = newRole.id;
-        toast.success("Role added successfully ✅");
+        toast.success("Role added successfully");
       }
 
       // ⬇️ Save selected permissions
       await updateRolePermissions(roleId, selectedPerms);
-      toast.success("Permissions updated ✅");
+      toast.success("Permissions updated");
 
       nav("/roles");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save role or permissions ❌");
+      toast.error("Failed to save role or permissions");
     }
   };
 
@@ -150,6 +150,7 @@ useEffect(() => {
           </label>
           <input
             type="text"
+            autoFocus
             {...register("role", { required: "Role name is required" })}
             className={`border rounded-md px-3 py-2 mt-1 w-full focus:ring-2 focus:ring-blue-400 ${
               errors.role ? "border-red-500" : ""
@@ -222,7 +223,7 @@ useEffect(() => {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
           >
             {editing ? "Update Role" : "Add Role"}
           </button>

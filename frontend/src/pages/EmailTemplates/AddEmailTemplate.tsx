@@ -43,7 +43,7 @@ const AddEmailTemplate: React.FC = () => {
     },
   });
 
-  // 🚫 Prevent space input or paste
+  // Prevent space input or paste
   const preventSpaceInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === " ") e.preventDefault();
   };
@@ -67,7 +67,7 @@ const AddEmailTemplate: React.FC = () => {
           setValue("status", data.status);
         } catch (err) {
           console.error(err);
-          toast.error("Failed to load template ❌");
+          toast.error("Failed to load template");
         } finally {
           setLoading(false);
         }
@@ -86,18 +86,18 @@ const AddEmailTemplate: React.FC = () => {
     try {
       if (editing && existingTemplate) {
         await updateEmailTemplate(existingTemplate.id, data);
-        toast.success("Template updated ✅");
+        toast.success("Template updated");
       } else {
         await createEmailTemplate({
           ...data,
           createdAt: new Date().toISOString(),
         });
-        toast.success("Template added ✅");
+        toast.success("Template added");
       }
       nav("/email-templates");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save template ❌");
+      toast.error("Failed to save template");
     }
   };
 
@@ -118,7 +118,9 @@ const AddEmailTemplate: React.FC = () => {
               <label className="block text-sm font-medium mb-1">
                 Key <span className="text-red-500">*</span>
               </label>
+
               <input
+              autoFocus
                 type="text"
                 {...register("key", {
                   required: "Key is required",
@@ -226,7 +228,7 @@ const AddEmailTemplate: React.FC = () => {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
               >
                 {editing ? "Update" : "Save"}
               </button>

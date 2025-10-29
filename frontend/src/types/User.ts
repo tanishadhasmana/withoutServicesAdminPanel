@@ -13,6 +13,7 @@ export interface User {
   profileImage?: string;
   createdAt: string;
   updatedAt?: string | null;
+  permissions?: string[];
 }
 
 

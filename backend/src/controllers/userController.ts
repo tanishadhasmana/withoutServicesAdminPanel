@@ -11,7 +11,8 @@ import {
   updateUserStatusService,
   loginUserService,
   getMeService,
-  deleteUserService
+  deleteUserService,
+  getUsersCountService
 } from "../services/user.service";
 import { sendMail } from "../utils/mailer";
 import { logActivity } from "../services/audit.service";
@@ -49,21 +50,47 @@ export const createFirstAdmin = async (req: Request, res: Response) => {
   }
 };
 
-// ----------------------------
-// Get All Users
-// ----------------------------
+export const getUsersCount = async (req: Request, res: Response) => {
+  try {
+    const total = await getUsersCountService();
+
+    // optional: log activity but keep it lightweight
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "View",
+      activity: "Fetched user count",
+    });
+
+    return res.status(200).json({ total });
+  } catch (err: any) {
+    console.error("Failed to get users count:", err);
+    return res.status(500).json({ message: err.message || "Failed to get users count" });
+  }
+};
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
-    const { search, column } = req.query;
+    const { search, column, sortBy, sortOrder, includeCount } = req.query;
     const page = req.query.page ? Number(req.query.page) : 1;
     const limit = req.query.limit ? Number(req.query.limit) : 10;
+
+    // validate sortOrder client-side-ish
+    const order = (sortOrder === "asc" || sortOrder === "desc") ? (sortOrder as "asc" | "desc") : undefined;
+
+    // includeCount: if client explicitly says true OR it's the first page, include count
+    const includeCountBool = (includeCount === "true") || page === 1;
+   
+
 
     const result = await getAllUsersService(
       search as string,
       column as string,
       page,
-      limit
+      limit,
+      sortBy as string | undefined,
+      order,
+      includeCountBool
     );
 
     await logActivity({
@@ -73,13 +100,15 @@ export const getAllUsers = async (req: Request, res: Response) => {
         : "Unknown",
       type: "View",
       activity: `Fetched users - page ${page}`,
-    });
+    }).catch(() => {});
 
     res.status(200).json(result);
   } catch (err: any) {
-    res.status(500).json({ message: err.message });
+    console.error("getAllUsers error:", err);
+    res.status(500).json({ message: err.message || "Failed to fetch users" });
   }
 };
+
 
 // ----------------------------
 // Get User by ID
@@ -91,7 +120,9 @@ export const getUserById = async (req: Request, res: Response) => {
 
     await logActivity({
       userId: req.user?.id || null,
-      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      username: req.user
+        ? `${req.user.firstName} ${req.user.lastName}`
+        : "Unknown",
       type: "View",
       activity: `Viewed user ID: ${req.params.id}`,
     });
@@ -110,7 +141,10 @@ export const createUser = async (req: Request, res: Response) => {
     let imagePath;
     if (req.file) imagePath = `/images/${req.file.filename}`;
 
-    const { user, tempPassword } = await createUserService({ ...req.body, imagePath });
+    const { user, tempPassword } = await createUserService({
+      ...req.body,
+      imagePath,
+    });
 
     const loginUrl = process.env.FRONTEND_URL || "http://localhost:5173/login";
     const subject = "Welcome to Our Platform!";
@@ -121,13 +155,20 @@ export const createUser = async (req: Request, res: Response) => {
       <strong>Temporary Password:</strong> ${tempPassword}</p>
       <p><a href="${loginUrl}" style="padding:10px 20px;background:#007bff;color:#fff;text-decoration:none;border-radius:5px;">Login Now</a></p>
     `;
-    sendMail(user.email, subject, `Hello ${user.firstName}, use this link to login: ${loginUrl}`, html)
+    sendMail(
+      user.email,
+      subject,
+      `Hello ${user.firstName}, use this link to login: ${loginUrl}`,
+      html
+    )
       .then(() => console.log("Welcome email sent to:", user.email))
       .catch((err) => console.error("Failed to send email:", err));
 
     await logActivity({
       userId: req.user?.id || null,
-      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      username: req.user
+        ? `${req.user.firstName} ${req.user.lastName}`
+        : "Unknown",
       type: "Create",
       activity: `Created user: ${user.email}`,
     });
@@ -144,14 +185,19 @@ export const createUser = async (req: Request, res: Response) => {
 export const updateUser = async (req: Request, res: Response) => {
   try {
     const userId = Number(req.params.id);
-    if (isNaN(userId)) return res.status(400).json({ message: "Invalid user ID" });
+    if (isNaN(userId))
+      return res.status(400).json({ message: "Invalid user ID" });
 
     let imagePath: string | undefined;
     if (req.file) {
       imagePath = `/images/${req.file.filename}`;
       const oldUser = await getUserByIdService(userId);
       if (oldUser?.profileImage) {
-        const oldImagePath = path.join(__dirname, "../../assets", oldUser.profileImage.replace(/^\//, ""));
+        const oldImagePath = path.join(
+          __dirname,
+          "../../assets",
+          oldUser.profileImage.replace(/^\//, "")
+        );
         if (fs.existsSync(oldImagePath)) fs.unlinkSync(oldImagePath);
       }
     }
@@ -165,14 +211,16 @@ export const updateUser = async (req: Request, res: Response) => {
       phone: req.body.phone || null,
       status: req.body.status || "active",
       roleId: roleId,
-      imagePath,
+      profileImage: imagePath || undefined,
     };
 
     const updatedUser = await updateUserService(userId, updateData);
 
     await logActivity({
       userId: req.user?.id || null,
-      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      username: req.user
+        ? `${req.user.firstName} ${req.user.lastName}`
+        : "Unknown",
       type: "Update",
       activity: `Updated user ID: ${userId}`,
     });
@@ -195,7 +243,9 @@ export const updateUserStatus = async (req: Request, res: Response) => {
 
     await logActivity({
       userId: req.user?.id || null,
-      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      username: req.user
+        ? `${req.user.firstName} ${req.user.lastName}`
+        : "Unknown",
       type: "Update",
       activity: `Updated status of user ID: ${userId} to ${status}`,
     });
@@ -209,21 +259,29 @@ export const updateUserStatus = async (req: Request, res: Response) => {
 // ----------------------------
 // Login User
 // ----------------------------
+// ----------------------------
+// Login User
+// ----------------------------
 export const loginUser = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
+
+    // Call service which handles DB logic and permissions
     const user = await loginUserService(email, password);
+
+    // Generate JWT
     const token = generateToken(user);
 
-   res.cookie("token", token, {
-  httpOnly: true,                // prevents JS access
-  secure: process.env.NODE_ENV === "production", // use HTTPS in prod
-  sameSite: "lax",               // allows frontend on same domain
-  maxAge: 24 * 60 * 60 * 1000,   // 1 day
-  path: "/",                     // accessible across all routes
-});
+    // Set cookie
+    res.cookie("token", token, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 24 * 60 * 60 * 1000,
+      path: "/",
+    });
 
-
+    // Log activity
     await logActivity({
       userId: user.id,
       username: `${user.firstName} ${user.lastName}`,
@@ -231,6 +289,7 @@ export const loginUser = async (req: Request, res: Response) => {
       activity: "User logged in",
     });
 
+    // Send response
     res.status(200).json({ user, token });
   } catch (err: any) {
     res.status(400).json({ message: err.message });
@@ -245,7 +304,9 @@ export const logoutUser = async (req: Request, res: Response) => {
 
   await logActivity({
     userId: req.user?.id || null,
-    username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+    username: req.user
+      ? `${req.user.firstName} ${req.user.lastName}`
+      : "Unknown",
     type: "Authentication",
     activity: "User logged out",
   });
@@ -258,7 +319,8 @@ export const logoutUser = async (req: Request, res: Response) => {
 // ----------------------------
 export const getMe = async (req: Request, res: Response) => {
   try {
-    if (!req.user) return res.status(401).json({ message: "Not authenticated" });
+    if (!req.user)
+      return res.status(401).json({ message: "Not authenticated" });
     const user = await getMeService(req.user.id);
 
     await logActivity({
@@ -274,21 +336,23 @@ export const getMe = async (req: Request, res: Response) => {
   }
 };
 
-
 // ----------------------------
 // Delete User
 // ----------------------------
 export const deleteUser = async (req: Request, res: Response) => {
   try {
     const userId = Number(req.params.id);
-    if (isNaN(userId)) return res.status(400).json({ message: "Invalid user ID" });
+    if (isNaN(userId))
+      return res.status(400).json({ message: "Invalid user ID" });
 
     const deleted = await deleteUserService(userId);
     if (!deleted) return res.status(404).json({ message: "User not found" });
 
     await logActivity({
       userId: req.user?.id || null,
-      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      username: req.user
+        ? `${req.user.firstName} ${req.user.lastName}`
+        : "Unknown",
       type: "Delete",
       activity: `Deleted user ID: ${userId}`,
     });
@@ -296,10 +360,10 @@ export const deleteUser = async (req: Request, res: Response) => {
     return res.status(200).json({ message: "User deleted successfully" });
   } catch (err: any) {
     console.error("Delete user error:", err);
-    return res.status(500).json({ message: err.message || "Failed to delete user" });
+    return res
+      .status(500)
+      .json({ message: err.message || "Failed to delete user" });
   }
 };
 
 export default router;
-
-

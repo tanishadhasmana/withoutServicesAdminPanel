@@ -10,13 +10,21 @@ export type GetFaqListParams = {
   status?: FAQStatus | "all";
   page?: number;
   limit?: number;
+  // added
+  sortBy?: string;
+  order?: "asc" | "desc";
 };
 
 // Get paginated FAQ list (returns { items, total, totalPages, currentPage })
+// export const getFaqList = async (params?: GetFaqListParams) => {
+//   const { data } = await api.get("/faq", { params });
+//   return data;
+// };
 export const getFaqList = async (params?: GetFaqListParams) => {
   const { data } = await api.get("/faq", { params });
   return data;
 };
+
 
 // existing functions unchanged:
 export const getFaqById = async (id: number): Promise<FAQ> => {

@@ -21,21 +21,43 @@ const Sidebar: React.FC = () => {
 
   const menu = [
     { label: "Dashboard", to: "/dashboard", icon: <FaTachometerAlt /> },
-    { label: "Users", to: "/users", icon: <FaUsers /> },
-    { label: "Roles", to: "/roles", icon: <FaUserShield /> },
-    { label: "CMS", to: "/cms", icon: <FaFileAlt /> },
-    { label: "FAQ", to: "/faq", icon: <FaQuestionCircle /> },
+    {
+      label: "Users",
+      to: "/users",
+      icon: <FaUsers />,
+      permission: "user_list",
+    },
+    {
+      label: "Roles",
+      to: "/roles",
+      icon: <FaUserShield />,
+      permission: "role_list",
+    },
+    { label: "CMS", to: "/cms", icon: <FaFileAlt />, permission: "cms_list" },
+    {
+      label: "FAQ",
+      to: "/faq",
+      icon: <FaQuestionCircle />,
+      permission: "faq_list",
+    },
     {
       label: "Email Templates",
       to: "/email-templates",
       icon: <FaEnvelopeOpenText />,
+      permission: "email_list",
     },
     {
       label: "Application Config",
       to: "/application-config",
       icon: <FaCogs />,
+      permission: "config_list",
     },
-    { label: "Audit Logs", to: "/audit", icon: <FaClipboardList /> },
+    {
+      label: "Audit Logs",
+      to: "/audit",
+      icon: <FaClipboardList />,
+      permission: "logs_list",
+    },
   ];
 
   return (
@@ -49,7 +71,7 @@ const Sidebar: React.FC = () => {
         {isOpen && <h1 className="text-lg font-semibold">Admin Panel</h1>}
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="text-white hover:text-gray-200"
+          className="text-white hover:text-gray-200 cursor-pointer"
         >
           <FaBars size={20} />
         </button>
@@ -60,7 +82,7 @@ const Sidebar: React.FC = () => {
         <img
           src={
             user?.profileImage
-              ? `http://localhost:3000${user.profileImage}`
+              ? import.meta.env.VITE_STATIC_BASE + user.profileImage
               : "/default-avatar.png"
           }
           alt="User"
@@ -78,21 +100,26 @@ const Sidebar: React.FC = () => {
 
       {/* Menu */}
       <nav className="p-2 flex-1 overflow-y-auto">
-        {menu.map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            className={`flex items-center gap-3 p-3 rounded hover:bg-blue-700 ${
-              location.pathname.startsWith(item.to) ? "bg-blue-700" : ""
-            }`}
-          >
-            <div className="text-lg">{item.icon}</div>
-            {isOpen && <span>{item.label}</span>}
-          </Link>
-        ))}
+        {/* {menu.map((item) => ( */}
+        {menu
+          .filter(
+            (item) =>
+              !item.permission || user?.permissions?.includes(item.permission)
+          )
+          .map((item) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={`flex items-center gap-3 p-3 rounded hover:bg-blue-700 ${
+                location.pathname.startsWith(item.to) ? "bg-blue-700" : ""
+              }`}
+            >
+              <div className="text-lg">{item.icon}</div>
+              {isOpen && <span>{item.label}</span>}
+            </Link>
+          ))}
       </nav>
     </aside>
-
   );
 };
 

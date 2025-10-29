@@ -1,11 +1,27 @@
 import api from "../lib/api";
 import type { EmailTemplate, TemplateStatus } from "../types/EmailTemplate";
 
-// export const getEmailTemplates = async (status: TemplateStatus | "all" = "all"): Promise<EmailTemplate[]> => {
-//   const { data } = await api.get<EmailTemplate[]>(`/email-templates?status=${status}`);
-//   return data;
+// export const getEmailTemplates = async ({
+//   key,
+//   title,
+//   subject,
+//   status = "all",
+//   page = 1,
+//   limit = 10,
+// }: {
+//   key?: string;
+//   title?: string;
+//   subject?: string;
+//   status?: TemplateStatus | "all";
+//   page?: number;
+//   limit?: number;
+// }) => {
+//   const { data } = await api.get("/email-templates", {
+//     params: { key, title, subject, status, page, limit },
+//     withCredentials: true, // keep consistent with your other service calls if you use cookies
+//   });
+//   return data; // expect { items, total, totalPages, currentPage }
 // };
-// email template for pagination
 export const getEmailTemplates = async ({
   key,
   title,
@@ -13,6 +29,8 @@ export const getEmailTemplates = async ({
   status = "all",
   page = 1,
   limit = 10,
+  sortBy,
+  order,
 }: {
   key?: string;
   title?: string;
@@ -20,13 +38,19 @@ export const getEmailTemplates = async ({
   status?: TemplateStatus | "all";
   page?: number;
   limit?: number;
+  sortBy?: string;
+  order?: "asc" | "desc";
 }) => {
+  const params: Record<string, any> = { key, title, subject, status, page, limit };
+  if (sortBy) params.sortBy = sortBy;
+  if (order) params.order = order;
   const { data } = await api.get("/email-templates", {
-    params: { key, title, subject, status, page, limit },
-    withCredentials: true, // keep consistent with your other service calls if you use cookies
+    params,
+    withCredentials: true,
   });
-  return data; // expect { items, total, totalPages, currentPage }
+  return data;
 };
+
 
 
 export const createEmailTemplate = async (template: Omit<EmailTemplate, "id">) => {

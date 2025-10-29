@@ -11,38 +11,38 @@ import { logActivity } from "../services/audit.service";
 // ----------------------------
 // Get CMS List (Pagination + Filters)
 // ----------------------------
-export const getAllCms = async (req: Request, res: Response) => {
-  try {
-    const { id, key, title, status, page = "1", limit = "10" } = req.query;
-    const filters: any = {};
+// export const getAllCms = async (req: Request, res: Response) => {
+//   try {
+//     const { id, key, title, status, page = "1", limit = "10" } = req.query;
+//     const filters: any = {};
 
-    if (id) filters.id = id;
-    if (key) filters.key = key;
-    if (title) filters.title = title;
-    if (status) filters.status = status;
+//     if (id) filters.id = id;
+//     if (key) filters.key = key;
+//     if (title) filters.title = title;
+//     if (status) filters.status = status;
 
-    const pageNum = parseInt(page as string, 10) || 1;
-    const limitNum = parseInt(limit as string, 10) || 10;
+//     const pageNum = parseInt(page as string, 10) || 1;
+//     const limitNum = parseInt(limit as string, 10) || 10;
 
-    const result = await getCmsListService(filters, pageNum, limitNum);
+//     const result = await getCmsListService(filters, pageNum, limitNum);
 
-    await logActivity({
-      userId: req.user?.id || null,
-      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
-      type: "View",
-      activity: `Fetched CMS list with filters: ${JSON.stringify(filters)} | page: ${pageNum}`,
-    });
+//     await logActivity({
+//       userId: req.user?.id || null,
+//       username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+//       type: "View",
+//       activity: `Fetched CMS list with filters: ${JSON.stringify(filters)} | page: ${pageNum}`,
+//     });
 
-    return res.status(200).json(result);
-  } catch (err) {
-    console.error("Error fetching CMS list:", err);
-    return res.status(500).json({ message: "Failed to fetch CMS list" });
-  }
-};
+//     return res.status(200).json(result);
+//   } catch (err) {
+//     console.error("Error fetching CMS list:", err);
+//     return res.status(500).json({ message: "Failed to fetch CMS list" });
+//   }
+// };
 
-// ----------------------------
-// Get CMS by ID
-// ----------------------------
+// // ----------------------------
+// // Get CMS by ID
+// // ----------------------------
 export const getCmsById = async (req: Request, res: Response) => {
   try {
     const cms = await getCmsByIdService(Number(req.params.id));
@@ -60,6 +60,43 @@ export const getCmsById = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Failed to fetch CMS" });
   }
 };
+
+export const getAllCms = async (req: Request, res: Response) => {
+  try {
+    const { id, key, title, status, page = "1", limit = "10", sortBy, order } = req.query;
+    const filters: any = {};
+
+    if (id) filters.id = id;
+    if (key) filters.key = key;
+    if (title) filters.title = title;
+    if (status) filters.status = status;
+
+    const pageNum = parseInt(page as string, 10) || 1;
+    const limitNum = parseInt(limit as string, 10) || 10;
+
+    const result = await getCmsListService(
+      filters,
+      pageNum,
+      limitNum,
+      sortBy as string | undefined,
+      (order as "asc" | "desc") || undefined
+    );
+
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
+      type: "View",
+      activity: `Fetched CMS list with filters: ${JSON.stringify(filters)} | page: ${pageNum}`,
+    });
+
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error("Error fetching CMS list:", err);
+    return res.status(500).json({ message: "Failed to fetch CMS list" });
+  }
+};
+
+
 
 // ----------------------------
 // Create CMS

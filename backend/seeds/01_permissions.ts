@@ -1,7 +1,6 @@
 import { Knex } from "knex";
 
 export async function seed(knex: Knex): Promise<void> {
-  // Clear existing data
   await knex("permissions").del();
 
   await knex("permissions").insert([

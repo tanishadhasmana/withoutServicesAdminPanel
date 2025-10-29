@@ -25,7 +25,7 @@ const AddUser: React.FC = () => {
   const nav = useNavigate();
 
   const [roles, setRoles] = useState<{ id: number; role: string }[]>([]);
-  const [profilePreview, setProfilePreview] = useState<string | null>(null);
+  const [profilePreview, setProfilePreview] = useState<string | undefined>(undefined);
 
   const {
     register,
@@ -74,7 +74,7 @@ const AddUser: React.FC = () => {
         setRoles(normalized);
       } catch (err) {
         console.error("Failed to load roles:", err);
-        toast.error("Failed to fetch roles ❌");
+        toast.error("Failed to fetch roles");
       }
     })();
   }, []);
@@ -96,13 +96,13 @@ const AddUser: React.FC = () => {
         setValue("roleId", matchedRole ? matchedRole.id : 0);
 
         if (data.profileImage) {
-          setProfilePreview(`http://localhost:3000${data.profileImage}`);
+          setProfilePreview(import.meta.env.VITE_STATIC_BASE + data.profileImage);
         } else {
-          setProfilePreview(null);
+          setProfilePreview(undefined);
         }
       } catch (error) {
         console.error("Failed to fetch user:", error);
-        toast.error("Failed to load user data ❌");
+        toast.error("Failed to load user data");
       }
     };
 
@@ -115,9 +115,9 @@ const AddUser: React.FC = () => {
     if (file) {
       const validTypes = ["image/jpeg", "image/png", "image/jpg", "image/webp"];
       if (!validTypes.includes(file.type)) {
-        toast.error("Only JPG, PNG, or WEBP image files are allowed ❌");
+        toast.error("Only JPG, PNG, or WEBP image files are allowed");
         e.target.value = "";
-        setProfilePreview(null);
+        setProfilePreview(undefined);
         return;
       }
       setProfilePreview(URL.createObjectURL(file));
@@ -144,13 +144,13 @@ const AddUser: React.FC = () => {
           headers: { "Content-Type": "multipart/form-data" },
           withCredentials: true,
         });
-        toast.success("User updated successfully ✅");
+        toast.success("User updated successfully");
       } else {
         await api.post("/users", formData, {
           headers: { "Content-Type": "multipart/form-data" },
           withCredentials: true,
         });
-        toast.success("User created successfully ✅");
+        toast.success("User created successfully");
       }
 
       nav("/users");
@@ -161,10 +161,10 @@ const AddUser: React.FC = () => {
           response?: { data?: { message?: string } };
         };
         toast.error(
-          axiosError.response?.data?.message || "Failed to save user ❌"
+          axiosError.response?.data?.message || "Failed to save user"
         );
       } else {
-        toast.error("Something went wrong ❌");
+        toast.error("Something went wrong");
       }
     }
   };
@@ -184,6 +184,7 @@ const AddUser: React.FC = () => {
               First Name <span className="text-red-500">*</span>
             </label>
             <input
+            autoFocus
               {...register("firstName", {
                 required: "First name is required",
                 minLength: { value: 3, message: "Minimum 3 characters" },
@@ -253,7 +254,7 @@ const AddUser: React.FC = () => {
                 },
               })}
               onKeyDown={(e) => {
-                if (e.key === " ") e.preventDefault(); // 🚫 Block space key completely
+                if (e.key === " ") e.preventDefault(); // Block space key completely
               }}
               onChange={(e) => {
                 const noSpaces = e.target.value.replace(/\s+/g, "");
@@ -371,9 +372,7 @@ const AddUser: React.FC = () => {
               onChange={handleImageChange}
               className="mt-1 block w-full text-sm text-gray-700 border rounded-md cursor-pointer"
             />
-            <img
-              src={profilePreview || "/default-avatar.png"}
-              alt="Preview"
+            <img src={profilePreview}
               className="w-20 h-20 mt-2 rounded-full border object-cover"
             />
           </div>
@@ -384,7 +383,7 @@ const AddUser: React.FC = () => {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
           >
             {editing ? "Update User" : "Add User"}
           </button>
