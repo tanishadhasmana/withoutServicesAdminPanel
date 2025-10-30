@@ -8,43 +8,12 @@ import {
 } from "../services/cms.service";
 import { logActivity } from "../services/audit.service";
 
-// ----------------------------
-// Get CMS List (Pagination + Filters)
-// ----------------------------
-// export const getAllCms = async (req: Request, res: Response) => {
-//   try {
-//     const { id, key, title, status, page = "1", limit = "10" } = req.query;
-//     const filters: any = {};
-
-//     if (id) filters.id = id;
-//     if (key) filters.key = key;
-//     if (title) filters.title = title;
-//     if (status) filters.status = status;
-
-//     const pageNum = parseInt(page as string, 10) || 1;
-//     const limitNum = parseInt(limit as string, 10) || 10;
-
-//     const result = await getCmsListService(filters, pageNum, limitNum);
-
-//     await logActivity({
-//       userId: req.user?.id || null,
-//       username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
-//       type: "View",
-//       activity: `Fetched CMS list with filters: ${JSON.stringify(filters)} | page: ${pageNum}`,
-//     });
-
-//     return res.status(200).json(result);
-//   } catch (err) {
-//     console.error("Error fetching CMS list:", err);
-//     return res.status(500).json({ message: "Failed to fetch CMS list" });
-//   }
-// };
-
 // // ----------------------------
 // // Get CMS by ID
 // // ----------------------------
 export const getCmsById = async (req: Request, res: Response) => {
   try {
+    // firstly getting cms by id from service, req params, and calling getCmsByIdService fucn to fetch cms record from db---- if found log activity generated else show not found
     const cms = await getCmsByIdService(Number(req.params.id));
     if (!cms) return res.status(404).json({ message: "CMS not found" });
 
@@ -61,8 +30,13 @@ export const getCmsById = async (req: Request, res: Response) => {
   }
 };
 
+
+// // ----------------------------
+// // Get All CMS 
+// // ----------------------------
 export const getAllCms = async (req: Request, res: Response) => {
   try {
+    // feching data from query params
     const { id, key, title, status, page = "1", limit = "10", sortBy, order } = req.query;
     const filters: any = {};
 
@@ -73,7 +47,7 @@ export const getAllCms = async (req: Request, res: Response) => {
 
     const pageNum = parseInt(page as string, 10) || 1;
     const limitNum = parseInt(limit as string, 10) || 10;
-
+// and passung that query params to getCmsListService fucn to fetch filtered paginated list.
     const result = await getCmsListService(
       filters,
       pageNum,
@@ -103,6 +77,7 @@ export const getAllCms = async (req: Request, res: Response) => {
 // ----------------------------
 export const createCms = async (req: Request, res: Response) => {
   try {
+    // feching data from query params
     const data = { ...req.body, createdBy: req.user?.id || null };
     const created = await createCmsService(data);
 
@@ -124,7 +99,9 @@ export const createCms = async (req: Request, res: Response) => {
 // ----------------------------
 export const updateCms = async (req: Request, res: Response) => {
   try {
+    // feching data from query params, id and the body means the data
     const data = { ...req.body, updatedBy: req.user?.id || null };
+    // and adding the updatedBy field to track who updated the record
     const updated = await updateCmsService(Number(req.params.id), data);
 
     await logActivity({
@@ -145,6 +122,7 @@ export const updateCms = async (req: Request, res: Response) => {
 // ----------------------------
 export const deleteCms = async (req: Request, res: Response) => {
   try {
+    // feching id from req params and calling deleteCmsService fucn to soft delete the record
     const result = await deleteCmsService(Number(req.params.id), req.user?.id || null);
 
     await logActivity({

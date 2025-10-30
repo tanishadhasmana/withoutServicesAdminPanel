@@ -13,7 +13,8 @@ import {
   updateUser,
   getUserById,
   deleteUser,
-  getUsersCount
+  getUsersCount,
+  exportAllUsers
 } from "../controllers/userController";
 import { protect, requirePermission } from "../middleware/authMiddleware";
 
@@ -57,6 +58,12 @@ router.get("/me", protect, getMe);
 // ----------------------------
 router.get("/", protect, requirePermission("user_list"), getAllUsers);
 router.get("/count", protect, requirePermission("user_list"), getUsersCount);
+router.get(
+  "/export",
+  protect,
+  requirePermission("user_list"),
+  exportAllUsers
+);
 router.get("/:id", protect, requirePermission("user_list"), getUserById);
 router.post("/", protect, requirePermission("user_add"), upload.single("image"), createUser);
 router.put("/:id", protect, requirePermission("user_edit"), upload.single("image"), updateUser);

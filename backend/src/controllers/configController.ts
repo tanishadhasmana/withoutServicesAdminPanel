@@ -2,11 +2,12 @@ import { Request, Response } from "express";
 import {fetchConfigList, fetchConfigById, insertConfig, updateConfigById, softDeleteConfig} from "../services/config.service";
 import { logActivity } from "../services/audit.service"; 
 
-// ✅ Local type declaration
+// Local type declaration
 type ConfigStatus = "active" | "inactive";
 
 export const getConfigList = async (req: Request, res: Response) => {
   try {
+    // fetching data from query params
     const status = (req.query.status as ConfigStatus | "all") || "all";
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
@@ -16,6 +17,7 @@ export const getConfigList = async (req: Request, res: Response) => {
     const sortOrder = (req.query.sortOrder as "asc" | "desc") || undefined;
 
     const { rows, total } = await fetchConfigList(status, page, limit, sortBy, sortOrder);
+    // Math.floor(65.5) is \(65\), and Math.ceil(65.5) is \(66\).
     const totalPages = Math.ceil(total / limit);
 
     await logActivity({
@@ -43,6 +45,7 @@ export const getConfigList = async (req: Request, res: Response) => {
 // Get config by ID
 export const getConfigById = async (req: Request, res: Response) => {
   try {
+    // fetching id from req params and calling fetchConfigById service fucn to get config record
     const { id } = req.params;
     const config = await fetchConfigById(id);
 
@@ -67,6 +70,7 @@ export const getConfigById = async (req: Request, res: Response) => {
 // Create new config
 export const createConfig = async (req: Request, res: Response) => {
   try {
+    // fetching params from req body and calling insertConfig service fucn to insert new config record
     const { key, value, displayOrder = 0, status = "active" } = req.body;
     const created = insertConfig({
       key,
@@ -96,6 +100,7 @@ export const createConfig = async (req: Request, res: Response) => {
 // Update config
 export const updateConfig = async (req: Request, res: Response) => {
   try {
+    // fetching id from req params and other data from req body to update the config record, and adding updatedBy field to track who updated the record
     const { id } = req.params;
     const { value, displayOrder, status } = req.body;
     const updated = updateConfigById(id, {

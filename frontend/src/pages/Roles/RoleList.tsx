@@ -74,7 +74,6 @@ const RoleList: React.FC = () => {
     [limit, sortBy, sortOrder]
   );
 
-  // Debounced search filter--- changed 
   // useEffect(() => {
   //   const timeout = setTimeout(() => {
   //     const key = (Object.keys(searchValues).find(
@@ -83,29 +82,30 @@ const RoleList: React.FC = () => {
 
   //     if (key && searchValues[key]) {
   //       loadRoles(key, searchValues[key], 1, limit);
-  //     } else {
-  //       // reset to first page
-  //       loadRoles(undefined, undefined, 1, limit);
   //     }
   //   }, 500);
 
   //   return () => clearTimeout(timeout);
   // }, [searchValues, limit, loadRoles]);
-useEffect(() => {
-  const timeout = setTimeout(() => {
-    const key = (Object.keys(searchValues).find(
-      (k) => searchValues[k as RoleSearchKey]
-    ) as RoleSearchKey | undefined) ?? undefined;
 
-    if (key && searchValues[key]) {
-      loadRoles(key, searchValues[key], 1, limit);
-    }
-  }, 500);
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      const key =
+        (Object.keys(searchValues).find(
+          (k) => searchValues[k as RoleSearchKey]
+        ) as RoleSearchKey | undefined) ?? undefined;
 
-  return () => clearTimeout(timeout);
-}, [searchValues, limit, loadRoles]);
+      // If a filter key exists and has a non-empty value -> apply filter
+      if (key && searchValues[key]) {
+        loadRoles(key, searchValues[key], 1, limit);
+      } else {
+        // No filter value -> reset to full, first page
+        loadRoles(undefined, undefined, 1, limit);
+      }
+    }, 500);
 
-
+    return () => clearTimeout(timeout);
+  }, [searchValues, limit, loadRoles]);
 
   // initial load
   useEffect(() => {
@@ -153,56 +153,66 @@ useEffect(() => {
   //   }
   // };
 
-  
-const handleDeleteConfirmed = async (id: number, onClose: () => void) => {
-  try {
-    await deleteRole(id);
-    setRoles((prev) => prev.filter((r) => r.id !== id));
-    toast.success("Role deleted successfully");
-    onClose();
-  } catch (err) {
-    console.error("Delete failed:", err);
-    toast.error("Failed to delete role");
-    onClose();
-  }
-};
+  const handleDeleteConfirmed = async (id: number, onClose: () => void) => {
+    try {
+      await deleteRole(id);
+      setRoles((prev) => prev.filter((r) => r.id !== id));
+      toast.success("Role deleted successfully");
+      onClose();
+    } catch (err) {
+      console.error("Delete failed:", err);
+      toast.error("Failed to delete role");
+      onClose();
+    }
+  };
 
-const confirmDelete = (id: number) => {
-  confirmAlert({
-    customUI: ({ onClose }) => (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-scaleIn">
-          <h3 className="text-xl font-semibold text-gray-800 mb-3 text-center">Are you sure you want to delete this role?</h3>
-          <p className="text-gray-600 mb-6 text-center">This action cannot be undone.</p>
-          <div className="flex justify-center gap-4">
-            <button
-              onClick={onClose}
-              className="px-5 py-2 rounded-lg border border-gray-300 hover:bg-gray-100 cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => handleDeleteConfirmed(id, onClose)}
-              className="px-5 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 cursor-pointer"
-            >
-              Delete
-            </button>
+  const confirmDelete = (id: number) => {
+    confirmAlert({
+      customUI: ({ onClose }) => (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-scaleIn">
+            <h3 className="text-xl font-semibold text-gray-800 mb-3 text-center">
+              Are you sure you want to delete this role?
+            </h3>
+            <p className="text-gray-600 mb-6 text-center">
+              This action cannot be undone.
+            </p>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={onClose}
+                className="px-5 py-2 rounded-lg border border-gray-300 hover:bg-gray-100 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteConfirmed(id, onClose)}
+                className="px-5 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 cursor-pointer"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    ),
-  });
-};
-
-
+      ),
+    });
+  };
 
   // Toggle role status active/inactive
-  const handleToggle = async (id: number, currentStatus: "active" | "inactive") => {
+  const handleToggle = async (
+    id: number,
+    currentStatus: "active" | "inactive"
+  ) => {
     const newStatus = currentStatus === "active" ? "inactive" : "active";
     try {
       await toggleRoleStatus(id, newStatus);
-      setRoles((prev) => prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r)));
-      toast.success(newStatus === "active" ? "Role marked as active" : "Role marked as inactive");
+      setRoles((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: newStatus } : r))
+      );
+      toast.success(
+        newStatus === "active"
+          ? "Role marked as active"
+          : "Role marked as inactive"
+      );
     } catch (err) {
       console.error("Status update failed:", err);
       toast.error("Failed to update status");
@@ -213,7 +223,7 @@ const confirmDelete = (id: number) => {
   const SortArrow = ({ column }: { column: string }) => {
     if (sortBy !== column) {
       return (
-        <span className="inline-block ml-2 opacity-50 select-none" aria-hidden>
+        <span className="inline-block ml-2 opacity-50 select-none cursor-pointer" aria-hidden>
           ▲▼
         </span>
       );
@@ -353,7 +363,11 @@ const confirmDelete = (id: number) => {
                       className="border p-1 text-sm rounded w-full"
                       value={searchValues.role}
                       onChange={(e) =>
-                        setSearchValues((prev) => ({ ...prev, id: "", role: e.target.value.replace(/^\s+/, "") }))
+                        setSearchValues((prev) => ({
+                          ...prev,
+                          id: "",
+                          role: e.target.value.replace(/^\s+/, ""),
+                        }))
                       }
                     />
                   </th>
@@ -365,7 +379,11 @@ const confirmDelete = (id: number) => {
                       className="border p-1 text-sm rounded w-full"
                       value={searchValues.description}
                       onChange={(e) =>
-                        setSearchValues((prev) => ({ ...prev, id: "", description: e.target.value.replace(/^\s+/, "") }))
+                        setSearchValues((prev) => ({
+                          ...prev,
+                          id: "",
+                          description: e.target.value.replace(/^\s+/, ""),
+                        }))
                       }
                     />
                   </th>
@@ -375,7 +393,11 @@ const confirmDelete = (id: number) => {
                       className="border p-1 text-sm rounded w-full"
                       value={searchValues.status}
                       onChange={(e) =>
-                        setSearchValues((prev) => ({ ...prev, id: "", status: e.target.value as "" | "active" | "inactive" }))
+                        setSearchValues((prev) => ({
+                          ...prev,
+                          id: "",
+                          status: e.target.value as "" | "active" | "inactive",
+                        }))
                       }
                     >
                       <option value="">All</option>
@@ -390,7 +412,10 @@ const confirmDelete = (id: number) => {
               <tbody>
                 {roles.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center p-4 text-gray-500 italic">
+                    <td
+                      colSpan={5}
+                      className="text-center p-4 text-gray-500 italic"
+                    >
                       No roles found.
                     </td>
                   </tr>
@@ -445,11 +470,27 @@ const confirmDelete = (id: number) => {
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
-                onPageChange={(page) => loadRoles(undefined, undefined, page, limit, sortBy, sortOrder)}
+                onPageChange={(page) =>
+                  loadRoles(
+                    undefined,
+                    undefined,
+                    page,
+                    limit,
+                    sortBy,
+                    sortOrder
+                  )
+                }
                 limit={limit}
                 onLimitChange={(newLimit) => {
                   setLimit(newLimit);
-                  loadRoles(undefined, undefined, 1, newLimit, sortBy, sortOrder);
+                  loadRoles(
+                    undefined,
+                    undefined,
+                    1,
+                    newLimit,
+                    sortBy,
+                    sortOrder
+                  );
                 }}
               />
             </div>
@@ -461,11 +502,6 @@ const confirmDelete = (id: number) => {
 };
 
 export default RoleList;
-
-
-
-
-
 
 // // src/pages/Roles/RoleList.tsx
 // import React, { useCallback, useEffect, useState } from "react";
@@ -541,7 +577,7 @@ export default RoleList;
 //     [limit, sortBy, sortOrder]
 //   );
 
-//   // Debounced search filter--- changed 
+//   // Debounced search filter--- changed
 //   // useEffect(() => {
 //   //   const timeout = setTimeout(() => {
 //   //     const key = (Object.keys(searchValues).find(
@@ -571,8 +607,6 @@ export default RoleList;
 
 //   return () => clearTimeout(timeout);
 // }, [searchValues, limit, loadRoles]);
-
-
 
 //   // initial load
 //   useEffect(() => {

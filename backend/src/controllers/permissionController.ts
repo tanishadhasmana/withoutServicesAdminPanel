@@ -1,11 +1,15 @@
 // src/controllers/permissionController.ts
 import { Request, Response } from "express";
-import * as permissionService from "../services/permission.service";
+import { 
+  getAllPermissions as getAllPermissionsService,
+  getRolePermissions as getRolePermissionsService,
+  updateRolePermissions as updateRolePermissionsService
+} from "../services/permission.service";
 
 // GET all permissions
 export const getAllPermissions = async (req: Request, res: Response) => {
   try {
-    const data = await permissionService.getAllPermissions(); // data: PermissionItem[]
+    const data = await getAllPermissionsService(); // data: PermissionItem[]
     res.json(data);
   } catch (err) {
     console.error("Failed to get permissions:", err);
@@ -17,7 +21,7 @@ export const getAllPermissions = async (req: Request, res: Response) => {
 export const getRolePermissions = async (req: Request, res: Response) => {
   try {
     const { roleId } = req.params;
-    const data = await permissionService.getRolePermissions(Number(roleId)); // number[]
+    const data = await getRolePermissionsService(Number(roleId)); // number[]
     res.json(data);
   } catch (err) {
     console.error("Failed to get role permissions:", err);
@@ -35,7 +39,7 @@ export const updateRolePermissions = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "permissionIds must be an array" });
     }
 
-    await permissionService.updateRolePermissions(Number(roleId), permissionIds);
+    await updateRolePermissionsService(Number(roleId), permissionIds);
     res.json({ message: "Permissions updated successfully" });
   } catch (err) {
     console.error("Failed to update role permissions:", err);

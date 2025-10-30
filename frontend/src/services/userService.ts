@@ -49,6 +49,15 @@ export const updateUser = async (id: number, user: Partial<User>) => {
   return res.data;
 };
 
+// exporting all users to CSV
+export const exportUsersCSV = async () => {
+  const res = await api.get("/users/export", {
+    responseType: "blob", // because it’s a CSV file
+    withCredentials: true,
+  });
+  return res;
+};
+
 // ✅ Delete user
 export const deleteUser = async (id: number) => {
   const res = await api.delete(`/users/${id}`, { withCredentials: true });

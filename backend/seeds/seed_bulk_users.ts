@@ -4,9 +4,8 @@ import bcrypt from "bcrypt";
 export async function seed(knex: Knex): Promise<void> {
   console.log("Seeding 1,100,000 users...");
 
-  // Avoid deleting existing real users — we start from id 40 onward
   const TOTAL = 2_000_000;
-  const START_ID = 1100041; // since last id in DB is 39
+  const START_ID = 1100041; 
   const BATCH = 5000;
 
   const passwordHash = await bcrypt.hash("Password@123", 10);
@@ -21,7 +20,7 @@ export async function seed(knex: Knex): Promise<void> {
         lastName: `Demo${n}`,
         email: `user${n}@example.com`,
         password: passwordHash,
-        roleId: Math.floor(Math.random() * 9) + 2, // roleId between 2 & 10
+        roleId: Math.floor(Math.random() * 9) + 2, // roleId between 2 & 10 will be assigned
         phone: `+91 90000${n.toString().slice(-5)}`,
         status: "active",
         createdAt: new Date(),

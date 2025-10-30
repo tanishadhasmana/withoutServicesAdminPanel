@@ -127,6 +127,60 @@ export const getAllUsersService = async (
   }
 };
 
+
+// ----------------------------
+// Export All Users Service (CSV data source)
+// ----------------------------
+export const exportUsersCSVService = async () => {
+  // Fetch all users from DB with role info
+  const users = await db("users")
+    .leftJoin("roles", "users.roleId", "roles.id")
+    .select(
+      "users.id",
+      "users.firstName",
+      "users.lastName",
+      "users.email",
+      "users.phone",
+      "roles.role as role",
+      "users.status"
+    )
+    .orderBy("users.id", "asc");
+
+  // Format headers and rows for CSV export
+  const headers = [
+    "ID",
+    "First Name",
+    "Last Name",
+    "Email",
+    "Phone",
+    "Role",
+    "Status",
+  ];
+
+  const rows = users.map((u) => [
+    u.id,
+    u.firstName,
+    u.lastName,
+    u.email,
+    u.phone || "-",
+    u.role || "",
+    u.status,
+  ]);
+
+  const csvContent = [
+    headers.join(","),
+    ...rows.map((r) => r.join(",")),
+  ].join("\n");
+
+  // Return as plain string (controller will handle sending file + headers)
+  return {
+    csvContent,
+    users, // optional, in case you need count or logging
+  };
+};
+
+
+
 // ----------------------------
 // Get User By ID
 // ----------------------------

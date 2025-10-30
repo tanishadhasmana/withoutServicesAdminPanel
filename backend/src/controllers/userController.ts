@@ -12,12 +12,14 @@ import {
   loginUserService,
   getMeService,
   deleteUserService,
-  getUsersCountService
+  getUsersCountService,
+  exportUsersCSVService
 } from "../services/user.service";
 import { sendMail } from "../utils/mailer";
 import { logActivity } from "../services/audit.service";
 
 const router = Router();
+
 
 // ----------------------------
 // Generate JWT
@@ -132,6 +134,47 @@ export const getUserById = async (req: Request, res: Response) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// ----------------------
+// Exporting all users
+// ----------------------
+export const exportAllUsers = async (req: Request, res: Response) => {
+  try {
+    const { csvContent, users } = await exportUsersCSVService();
+
+    // 🪵 Log activity
+    const exportedIds = users.slice(0, 20).map((u) => u.id).join(", ");
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user
+        ? `${req.user.firstName} ${req.user.lastName}`
+        : "Unknown",
+      type: "Export",
+      activity: `Exported ${users.length} users (first 20 IDs: ${exportedIds}${
+        users.length > 20 ? "..." : ""
+      })`,
+    });
+
+    // 📤 Send CSV
+    res.setHeader("Content-Disposition", "attachment; filename=users_export.csv");
+    res.setHeader("Content-Type", "text/csv");
+    res.status(200).send(csvContent);
+  } catch (err: any) {
+    console.error("Export failed:", err);
+
+    await logActivity({
+      userId: req.user?.id || null,
+      username: req.user
+        ? `${req.user.firstName} ${req.user.lastName}`
+        : "Unknown",
+      type: "Error",
+      activity: `User export failed: ${err.message}`,
+    }).catch(() => {});
+
+    res.status(500).json({ message: "Failed to export users" });
+  }
+};
+
 
 // ----------------------------
 // Create User

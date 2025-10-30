@@ -4,6 +4,7 @@ import {
   getUsers,
   deleteUser,
   toggleUserStatus,
+  exportUsersCSV,
 } from "../../services/userService";
 import type { User } from "../../types/User";
 import { useNavigate } from "react-router-dom";
@@ -12,6 +13,7 @@ import { Edit, Trash2 } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import Pagination from "../../components/common/Pagination";
 import { RingLoader } from "react-spinners";
+import { motion } from "framer-motion";
 import { confirmAlert } from "react-confirm-alert";
 
 const UserList: React.FC = () => {
@@ -20,6 +22,8 @@ const UserList: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [exporting, setExporting] = useState(false);
+
   const nav = useNavigate();
 
   const [searchValues, setSearchValues] = useState({
@@ -136,8 +140,12 @@ const UserList: React.FC = () => {
       customUI: ({ onClose }) => (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-scaleIn">
-            <h3 className="text-xl font-semibold text-gray-800 mb-3 text-center">Are you sure you want to delete this user?</h3>
-            <p className="text-gray-600 mb-6 text-center">This action cannot be undone.</p>
+            <h3 className="text-xl font-semibold text-gray-800 mb-3 text-center">
+              Are you sure you want to delete this user?
+            </h3>
+            <p className="text-gray-600 mb-6 text-center">
+              This action cannot be undone.
+            </p>
             <div className="flex justify-center gap-4">
               <button
                 onClick={onClose}
@@ -171,7 +179,9 @@ const UserList: React.FC = () => {
       );
 
       toast.success(
-        newStatus === "active" ? "User marked as active" : "User marked as inactive"
+        newStatus === "active"
+          ? "User marked as active"
+          : "User marked as inactive"
       );
     } catch (err) {
       console.error("Status update failed:", err);
@@ -192,7 +202,7 @@ const UserList: React.FC = () => {
     if (sortBy !== column) {
       // show neutral small arrows (you can style further)
       return (
-        <span className="inline-block ml-2 opacity-50 select-none" aria-hidden>
+        <span className="inline-block ml-2 opacity-50 select-none cursor-pointer" aria-hidden>
           ▲▼
         </span>
       );
@@ -210,55 +220,38 @@ const UserList: React.FC = () => {
         title="Users"
         right={
           <div className="flex gap-2">
-            {/* Export CSV */}
             <button
-              onClick={() => {
-                if (!users.length) {
-                  toast.error("No users to export");
-                  return;
+              onClick={async () => {
+                if (exporting) return; // prevent multiple clicks
+                setExporting(true);
+                try {
+                  const res = await exportUsersCSV();
+                  const blob = new Blob([res.data], {
+                    type: "text/csv;charset=utf-8;",
+                  });
+                  const url = window.URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.href = url;
+                  link.setAttribute("download", "users_export.csv");
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  toast.success("All users exported successfully");
+                } catch (err) {
+                  console.error(err);
+                  toast.error("Failed to export users");
+                } finally {
+                  setExporting(false);
                 }
-
-                const headers = [
-                  "ID",
-                  "First Name",
-                  "Last Name",
-                  "Email",
-                  "Phone",
-                  "Role",
-                  "Status",
-                ];
-                const csvRows = [
-                  headers.join(","),
-                  ...users.map((u) =>
-                    [
-                      u.id,
-                      `"${u.firstName}"`,
-                      `"${u.lastName}"`,
-                      `"${u.email}"`,
-                      `"${u.phone || "-"}"`,
-                      `"${u.role}"`,
-                      `"${u.status}"`,
-                    ].join(",")
-                  ),
-                ];
-
-                const blob = new Blob([csvRows.join("\n")], {
-                  type: "text/csv;charset=utf-8;",
-                });
-                const url = window.URL.createObjectURL(blob);
-
-                const link = document.createElement("a");
-                link.href = url;
-                link.setAttribute("download", "users_export.csv");
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-
-                toast.success("CSV exported successfully");
               }}
-              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 cursor-pointer"
+              disabled={exporting}
+              className={`${
+                exporting
+                  ? "bg-green-400 cursor-not-allowed"
+                  : "bg-green-600 hover:bg-green-700 cursor-pointer"
+              } text-white px-4 py-2 rounded`}
             >
-              Export CSV
+              {exporting ? "Exporting..." : "Export CSV"}
             </button>
 
             {/* Add User */}
@@ -370,7 +363,10 @@ const UserList: React.FC = () => {
                         value={searchValues[key as keyof typeof searchValues]}
                         onChange={(e) => {
                           const inputValue = e.target.value;
-                          if (inputValue.trimStart() === "" && inputValue !== "")
+                          if (
+                            inputValue.trimStart() === "" &&
+                            inputValue !== ""
+                          )
                             return;
                           setSearchValues((prev) => ({
                             ...prev,
@@ -481,31 +477,59 @@ const UserList: React.FC = () => {
                 onPageChange={(page) => {
                   // mark skip so search effect won't fire again after pagination-triggered load
                   skipNextSearch.current = true;
-                  loadUsers(undefined, undefined, page, limit, sortBy, sortOrder);
+                  loadUsers(
+                    undefined,
+                    undefined,
+                    page,
+                    limit,
+                    sortBy,
+                    sortOrder
+                  );
                 }}
                 limit={limit}
                 onLimitChange={(newLimit) => {
                   skipNextSearch.current = true;
                   setLimit(newLimit);
-                  loadUsers(undefined, undefined, 1, newLimit, sortBy, sortOrder);
+                  loadUsers(
+                    undefined,
+                    undefined,
+                    1,
+                    newLimit,
+                    sortBy,
+                    sortOrder
+                  );
                 }}
               />
             </div>
           </>
         )}
       </div>
+      {exporting && (
+        <div className="fixed inset-0 bg-green-900/90 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            className="flex flex-col items-center justify-center text-center text-white space-y-6 p-8 rounded-lg"
+          >
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <RingLoader color="#fff" size={100} />
+              <p className="text-3xl font-semibold tracking-wide">
+                YOUR FILE IS BEING CREATED
+              </p>
+              <p className="text-xl">
+                Please don’t close or refresh this window until process is
+                finished
+              </p>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default UserList;
-
-
-
-
-
-
-
 
 // src/pages/Users/UserList.tsx
 // import React, { useEffect, useState, useCallback } from "react";
@@ -600,8 +624,6 @@ export default UserList;
 //   return () => clearTimeout(timeout);
 // }, [searchValues, loadUsers]);
 
-
-
 //   // sorting handler
 //   const handleSort = (columnKey: string) => {
 //     // toggle order if same column clicked again; otherwise set asc by default
@@ -631,7 +653,6 @@ export default UserList;
 //     }
 //   };
 
-
 //   const confirmDelete = (id: number) => {
 // confirmAlert({
 // customUI: ({ onClose }) => (
@@ -658,7 +679,6 @@ export default UserList;
 // ),
 // });
 // };
-
 
 //   // Toggle user active/inactive
 //   const handleToggle = async (
@@ -1000,14 +1020,6 @@ export default UserList;
 
 // export default UserList;
 
-
-
-
-
-
-
-
-
 // src/pages/Users/UserList.tsx
 // import React, { useEffect, useState, useCallback } from "react";
 // import {
@@ -1158,7 +1170,6 @@ export default UserList;
 //   loadUsers(undefined, undefined, 1);
 //   // eslint-disable-next-line react-hooks/exhaustive-deps
 // }, []);
-  
 
 //   // UI helper to render arrow
 //   const SortArrow = ({ column }: { column: string }) => {
@@ -1469,14 +1480,6 @@ export default UserList;
 // };
 
 // export default UserList;
-
-
-
-
-
-
-
-
 
 // src/pages/Users/UserList.tsx
 // import React, { useEffect, useState, useCallback } from "react";
@@ -1926,10 +1929,6 @@ export default UserList;
 // };
 
 // export default UserList;
-
-
-
-
 
 // import React, { useEffect, useState, useCallback } from "react";
 // import {

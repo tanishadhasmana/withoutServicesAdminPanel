@@ -17,33 +17,6 @@ interface BackendAuditLog extends AuditLog {
   email?: string;
 }
 
-// export const getAuditLogs = async (
-//   page = 1,
-//   limit = 10
-// ): Promise<PaginatedAuditLogsResponse> => {
-//   const response = await axios.get(BASE_URL, {
-//     params: { page, limit },
-//     withCredentials: true,
-//   });
-
-//   const { data, total, totalPages, currentPage } = response.data;
-
-//   // ✅ Use BackendAuditLog instead of any or Partial<AuditLog>
-//   const logs: AuditLog[] = (data as BackendAuditLog[]).map((log) => ({
-//     id: log.id ?? 0,
-//     userId: log.userId ?? null,
-//     username:
-//       log.username ||
-//       `${log.firstName ?? ""} ${log.lastName ?? ""}`.trim() ||
-//       log.email ||
-//       "Unknown",
-//     type: log.type ?? "-",
-//     activity: log.activity ?? "-",
-//     timestamp: log.timestamp ?? new Date().toISOString(),
-//   }));
-
-//   return { data: logs, total, totalPages, currentPage };
-// };
 
 export const getAuditLogs = async (
   page = 1,
@@ -51,6 +24,7 @@ export const getAuditLogs = async (
   sortBy?: string,
   order?: "asc" | "desc"
 ): Promise<PaginatedAuditLogsResponse> => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const params: Record<string, any> = { page, limit };
   if (sortBy) params.sortBy = sortBy;
   if (order) params.order = order;

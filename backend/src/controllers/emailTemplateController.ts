@@ -14,15 +14,17 @@ import { logActivity } from "../services/audit.service";
 // ----------------------------
 export const getEmailTemplates = async (req: Request, res: Response) => {
   try {
+    // feching data from query params, and if no page and limit provided in req query then default to 1 and 10
     const { key, title, subject, status, page = "1", limit = "10", sortBy, order } = req.query;
 
-    // Build filters object (explicit)
+  //  creating an empty filters object to hold any filter criteria provided in the query params
+  // like if key provided in query param then add that to filters object, same for title, subject, status
     const filters: Record<string, any> = {};
     if (key) filters.key = String(key);
     if (title) filters.title = String(title);
     if (subject) filters.subject = String(subject);
     if (status) filters.status = String(status);
-
+// converting page and limit to numbers for pagination
     const pageNum = parseInt(String(page), 10) || 1;
     const limitNum = parseInt(String(limit), 10) || 10;
 

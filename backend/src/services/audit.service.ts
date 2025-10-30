@@ -1,38 +1,5 @@
 import db from "../../connection";
 
-
-// export const fetchAuditLogs = async (
-//   limit: number,
-//   offset: number,
-//   type?: string
-// ) => {
-//   let query = db("audit_logs as a")
-//     .select(
-//       "a.id",
-//       "a.type",
-//       "a.activity",
-//       "a.timestamp",
-//       "u.id as userId",
-//       "u.firstName",
-//       "u.lastName",
-//       "u.email"
-//     )
-//     .leftJoin("users as u", "a.userId", "u.id");
-
-//   if (type) query = query.where("a.type", type);
-
-//   // Total count- here query clone, means it creates a copy of the original query to avoid modifying original query, and clear select removes any select query if present, then cnt *, cnt all the rows including the rows with null values
-//   const [{ count }] = await query.clone().clearSelect().count({ count: "*" });
-
-//   // Paginated data
-//   const logs = await query
-//     .orderBy("a.timestamp", "desc")
-//     .limit(limit)
-//     .offset(offset);
-
-//   return { logs, total: Number(count) };
-// };
-
 export const fetchAuditLogs = async (
   limit: number,
   offset: number,

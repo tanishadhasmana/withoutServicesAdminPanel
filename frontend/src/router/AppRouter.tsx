@@ -22,6 +22,7 @@ import ApplicationConfigList from "../pages/ApplicationConfig/ApplicationConfigL
 import AddApplicationConfig from "../pages/ApplicationConfig/AddApplicationConfig";
 import AuditLogsPage from "../pages/AuditLogs/AuditLogsPage";
 
+
 const AppRouter = () => {
   const { user, loading } = useAuth();
 
@@ -29,6 +30,8 @@ const AppRouter = () => {
 
   return (
     <Routes>
+
+
       {/* 🔓 Public routes */}
       <Route
         path="/login"

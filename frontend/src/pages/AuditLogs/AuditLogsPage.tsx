@@ -75,7 +75,7 @@ const AuditLogsPage = () => {
   const SortArrow = ({ column }: { column: string }) => {
     if (sortBy !== column) {
       return (
-        <span className="inline-block ml-2 opacity-50 select-none" aria-hidden>
+        <span className="inline-block ml-2 opacity-50 select-none cursor-pointer" aria-hidden>
           ▲▼
         </span>
       );

@@ -150,7 +150,7 @@ const confirmDelete = (id: number) => {
         status: newStatus,
       });
       setConfigs((prev) => prev.map((c) => (c.id === config.id ? { ...c, status: newStatus } : c)));
-      toast.success(`Status updated to ${newStatus} ✅`);
+      toast.success(`Status updated to ${newStatus} `);
     } catch (err) {
       console.error("Toggle error:", err);
       toast.error("Failed to update status ");
@@ -191,7 +191,7 @@ const confirmDelete = (id: number) => {
   const SortArrow = ({ column }: { column: string }) => {
     if (sortBy !== column) {
       return (
-        <span className="inline-block ml-2 opacity-50 select-none" aria-hidden>
+        <span className="inline-block ml-2 opacity-50 select-none cursor-pointer" aria-hidden>
           ▲▼
         </span>
       );

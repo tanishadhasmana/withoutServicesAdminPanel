@@ -181,7 +181,7 @@ const confirmDelete = (id: number) => {
 
   const SortArrow = ({ column }: { column: string }) => {
     if (sortBy !== column) {
-      return <span className="inline-block ml-2 opacity-50 select-none" aria-hidden>▲▼</span>;
+      return <span className="inline-block ml-2 opacity-50 select-none cursor-pointer" aria-hidden>▲▼</span>;
     }
     return sortOrder === "asc" ? (
       <span className="inline-block ml-2 select-none">▲</span>

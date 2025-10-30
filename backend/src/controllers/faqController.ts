@@ -9,39 +9,6 @@ import {
 } from "../services/faq.service";
 import { logActivity } from "../services/audit.service";
 
-// ----------------------------
-// Get FAQ List (Pagination + Filters)
-// ----------------------------
-// export const getFaqList = async (req: Request, res: Response) => {
-//   try {
-//     const { id, question, answer, displayOrder, status, page = "1", limit = "10" } = req.query;
-
-//     const filters: any = {};
-//     if (id) filters.id = id;
-//     if (question) filters.question = question;
-//     if (answer) filters.answer = answer;
-//     if (displayOrder) filters.displayOrder = displayOrder;
-//     if (status) filters.status = status;
-
-//     const pageNum = parseInt(page as string, 10) || 1;
-//     const limitNum = parseInt(limit as string, 10) || 10;
-
-//     const result = await getFaqs(filters, pageNum, limitNum);
-
-//     await logActivity({
-//       userId: req.user?.id || null,
-//       username: req.user ? `${req.user.firstName} ${req.user.lastName}` : "Unknown",
-//       type: "View",
-//       activity: `Viewed FAQ List | page: ${pageNum} | filters: ${JSON.stringify(filters)}`,
-//     });
-
-//     return res.status(200).json(result);
-//   } catch (err) {
-//     console.error("Failed to fetch FAQs:", err);
-//     return res.status(500).json({ message: "Failed to fetch FAQs" });
-//   }
-// };
-
 export const getFaqList = async (req: Request, res: Response) => {
   try {
     const { id, question, answer, displayOrder, status, page = "1", limit = "10", sortBy, order } = req.query;
