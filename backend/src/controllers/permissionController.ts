@@ -21,7 +21,7 @@ export const getAllPermissions = async (req: Request, res: Response) => {
 export const getRolePermissions = async (req: Request, res: Response) => {
   try {
     const { roleId } = req.params;
-    const data = await getRolePermissionsService(Number(roleId)); // number[]
+    const data = await getRolePermissionsService(Number(roleId)); 
     res.json(data);
   } catch (err) {
     console.error("Failed to get role permissions:", err);

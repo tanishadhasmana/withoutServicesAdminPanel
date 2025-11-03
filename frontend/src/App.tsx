@@ -5,6 +5,7 @@ import "./index.css";
 import { Toaster } from "react-hot-toast";
 
 const App = () => (
+  // wreapped with that, like for authentication like logged in user, session managemenet etc.
   <AuthProvider>
     <BrowserRouter>
       <AppRouter />

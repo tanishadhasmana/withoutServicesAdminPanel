@@ -1,21 +1,27 @@
 import db from "../../connection";
+// bcrypt is a pashword hashing library, used to hash pass before saving to db.
 import bcrypt from "bcrypt";
+// node js core module, to handle file and directory path.
 import path from "path";
+// node js core module for file system to read write files.
 import fs from "fs";
 
 // ----------------------------
 // Create First Admin
 // ----------------------------
 export const createFirstAdminService = async (data: any) => {
+  // hashes pass using salt round 10 times,like user pass is accessed as data.pass like it is Tani123, then after hash it like of7QF4.OGJfYvq
   const hashedPassword = await bcrypt.hash(data.password, 10);
+  // inserting admin record to users table.
   const [id] = await db("users").insert({
+    // spread operator to copy all properties from data
     ...data,
     password: hashedPassword,
     role: "admin",
     roleId: null,
     status: "active",
   });
-
+// SELECT * FROM users WHERE id=? LIMIT 1, only 1st user.
   return db("users").where({ id }).first();
 };
 
@@ -23,6 +29,7 @@ export const createFirstAdminService = async (data: any) => {
 // Fast user count service
 // ----------------------------
 export const getUsersCountService = async (): Promise<number> => {
+  // like as user table has 123 record then total 123.
   const result = await db("users").count<{ total: number }>("id as total");
   // knex returns array like [{ total: '123' }] depending on DB driver
   const total = result?.[0]?.total ?? 0;
@@ -38,8 +45,9 @@ export const getAllUsersService = async (
   sortOrder: "asc" | "desc" = "desc",
   includeCount: boolean = true
 ) => {
+  // if page 1, offset-0, page 2 offset 10,page 3 offset 20, offset used to skip record.
   const offset = (page - 1) * limit;
-
+// only these cols are allowed for soting.
   const ALLOWED_SORTS: Record<string, string> = {
     id: "users.id",
     firstName: "users.firstName",
@@ -49,11 +57,12 @@ export const getAllUsersService = async (
     role: "roles.role",
     createdAt: "users.createdAt",
   };
-
+// if frontend sends value of sort by use it, else by createdAt, and in desc order by default.
   const sortColumn = sortBy && ALLOWED_SORTS[sortBy] ? ALLOWED_SORTS[sortBy] : "users.createdAt";
   const order = sortOrder === "asc" ? "asc" : "desc";
 
-  // Base query builder (for rows)
+  // SELECT users.id, users.firstName, users.lastName, users.email, ... FROM users LEFT JOIN roles ON users.roleId = roles id
+
   const rowsQuery = db("users")
     .leftJoin("roles", "users.roleId", "roles.id")
     .select(
@@ -69,7 +78,7 @@ export const getAllUsersService = async (
     )
     .modify((qb) => {
       if (search && column) {
-        // allow searching on status as exact match
+        // allow searching on status as exact match, like we say where user.email LIKE %tani%
         const searchCol = column === "role" ? "roles.role" : `users.${column}`;
         if (column === "status") {
           qb.where(searchCol, search.toLowerCase());
@@ -78,11 +87,12 @@ export const getAllUsersService = async (
         }
       }
     })
+    // how to show like order by the searched col, and ordr like asc, desc 
     .orderBy(sortColumn, order)
     .limit(limit)
     .offset(offset);
 
-  // If count requested, build countQuery with same filters
+  // like we are getting, SELECT COUNT(id) AS total FROM users WHERE email LIKE '%tanisha%'
   let countResult: any = null;
   if (includeCount) {
     const countQuery = db("users")
@@ -98,14 +108,15 @@ export const getAllUsersService = async (
       })
       .count<{ total: number }>("id as total");
 
-    // run both queries in parallel
+    // run both queries in parallel, for speed here rawquery gets actual user data, and cntquery get total no of users that matchs, promise all wait for all to complete.
     const [usersResult, cnt] = await Promise.all([rowsQuery, countQuery]);
     countResult = cnt;
     const users = usersResult || [];
+    //convert total into numbers, and if no total than place 0
     const total = Number(countResult?.[0]?.total ?? 0);
-    // at least 1 page for consistent UI even if total is 0
+    // ike if total 45 users, and limit is 10, then ceil 45/10 = 5 pages, max 1 ensure even if there is 0 user return atleast 1 page.
     const totalPages = Math.max(1, Math.ceil(total / limit));
-
+// if we have cnt, then we show these
     return {
       users,
       total,
@@ -113,10 +124,9 @@ export const getAllUsersService = async (
       currentPage: page,
       includeCount,
     };
+    // if not, show these, -1 is for signal that, total cnt was not calculated
   } else {
-    // count not requested: only run rowsQuery
     const users = await rowsQuery;
-    // when count not included, signal with -1 so frontend can handle gracefully
     return {
       users,
       total: -1,
@@ -158,15 +168,17 @@ export const exportUsersCSVService = async () => {
   ];
 
   const rows = users.map((u) => [
+    // data to show in csv file
     u.id,
     u.firstName,
     u.lastName,
     u.email,
+    // if no number, then show -,like 2,Simran,Kaur,simran@ex.com,-,hr,active
     u.phone || "-",
     u.role || "",
     u.status,
   ]);
-
+// format data as "ID,First Name,Last Name,Email,Phone,Role,Status"
   const csvContent = [
     headers.join(","),
     ...rows.map((r) => r.join(",")),
@@ -175,7 +187,7 @@ export const exportUsersCSVService = async () => {
   // Return as plain string (controller will handle sending file + headers)
   return {
     csvContent,
-    users, // optional, in case you need count or logging
+    users, 
   };
 };
 
@@ -207,11 +219,12 @@ export const getUserByIdService = async (id: number) => {
 // ----------------------------
 export const createUserService = async (data: any) => {
   const existing = await db("users").where({ email: data.email }).first();
-  if (existing) throw new Error("User already exists");
-
+  if (existing) throw new Error(`User with email ${data.email} already exists`);
+// Math.random genereate random nos b/w 0 and 1, then convert to base 36, means with 0-9 digits and a-z letters, slice(-8) means take the last 8 character, this is the temp pass, to send to user.
   const tempPassword = Math.random().toString(36).slice(-8);
+  // and store it as hashed in DB 
   const hashedPassword = await bcrypt.hash(tempPassword, 10);
-
+// like as we assign a rifole id, like if role id=2, it map to admin, so rol as admin
   let roleName: string | null = null;
   if (data.roleId) {
     const roleRow = await db("roles").where({ id: Number(data.roleId) }).first();
@@ -240,12 +253,12 @@ export const createUserService = async (data: any) => {
 // Update User
 // ----------------------------
 export const updateUserService = async (id: number, data: any) => {
+
   if (data.roleId) {
     const roleRow = await db("roles").where({ id: Number(data.roleId) }).first();
     if (roleRow) data.role = roleRow.role;
   }
 
-  // if (data.imagePath) data.profileImage = data.imagePath;
   if (data.imagePath) {
   data.profileImage = data.imagePath;   
 }
@@ -299,11 +312,12 @@ export const loginUserService = async (email: string, password: string) => {
     role: role ? role.role : user.role,
     roleId: user.roleId,
     status: user.status,
-    permissions, // ✅ Added here
+    // with logged in user we must have to pass the permissions.
+    permissions, 
   };
 };
 
-// fixing as shwoing access denied after refresh
+
 export const getMeService = async (id: number) => {
   // 1) Get user basic info
   const user = await db("users")
@@ -345,9 +359,6 @@ export const getMeService = async (id: number) => {
 };
 
 
-// ----------------------------
-// Delete User (hard delete + image cleanup)
-// ----------------------------
 export const deleteUserService = async (id: number | string) => {
   const userId = Number(id);
   if (isNaN(userId)) {
@@ -355,15 +366,13 @@ export const deleteUserService = async (id: number | string) => {
     return null;
   }
 
-  console.log("Trying to delete user ID:", userId);
-
   const user = await db("users").where({ id: userId }).first();
   if (!user) {
     console.log("User not found in DB for ID:", userId);
     return null;
   }
 
-  // 🧹 Remove profile image if exists
+  // Remove profile image if exists
   if (user.profileImage) {
     const imagePath = path.join(__dirname, "../../assets", user.profileImage.replace(/^\//, ""));
     if (fs.existsSync(imagePath)) {

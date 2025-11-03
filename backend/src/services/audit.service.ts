@@ -73,6 +73,8 @@ interface LogActivityParams {
   type: string; // e.g., "View", "Authentication", "Update"
   activity: string; // e.g., "Viewed dashboard", "Created user"
 }
+
+// the fucn to print log activity, with every fucn, in controller.
 export const logActivity = async ( params: LogActivityParams) => {
   const { userId, username, type, activity } = params;
   return db("audit_logs").insert({

@@ -12,17 +12,17 @@ import { logActivity } from "../services/audit.service";
 export const getFaqList = async (req: Request, res: Response) => {
   try {
     const { id, question, answer, displayOrder, status, page = "1", limit = "10", sortBy, order } = req.query;
-
+// make status obj like { status: "Active" }
     const filters: any = {};
     if (id) filters.id = id;
     if (question) filters.question = question;
     if (answer) filters.answer = answer;
     if (displayOrder) filters.displayOrder = displayOrder;
     if (status) filters.status = status;
-
+// converting the pages into number.
     const pageNum = parseInt(page as string, 10) || 1;
     const limitNum = parseInt(limit as string, 10) || 10;
-
+    
     const result = await getFaqs(
       filters,
       pageNum,

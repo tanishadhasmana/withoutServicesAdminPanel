@@ -16,17 +16,17 @@ const Pagination: React.FC<PaginationProps> = ({
   limit,
   onLimitChange,
 }) => {
-  // Generate a compact set of page numbers with ellipsis
+  // the fucn that generate arr of page numbers
   const generatePageNumbers = (): (number | string)[] => {
     const pages: (number | string)[] = [];
-
+// if there are 7 or few pages than display all page numbers
     if (totalPages <= 7) {
-      // Show all pages when few
       for (let i = 1; i <= totalPages; i++) pages.push(i);
     } else {
-      // Always show first, last, and nearby pages
+      // else if pages >7, and <= 4  then show first 5 pages then ...
       if (currentPage <= 4) {
         pages.push(1, 2, 3, 4, 5, "...", totalPages);
+        // if pages page ≥ totalPages - 3) then 1, ... , 16,17 etc
       } else if (currentPage >= totalPages - 3) {
         pages.push(1, "...", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
       } else {
@@ -73,6 +73,7 @@ const Pagination: React.FC<PaginationProps> = ({
         </button>
 
         {/* Page numbers */}
+        {/* page for page number, and index for ... placing */}
         {pages.map((page, idx) =>
           page === "..." ? (
             <span key={`dots-${idx}`} className="px-2 text-gray-500">

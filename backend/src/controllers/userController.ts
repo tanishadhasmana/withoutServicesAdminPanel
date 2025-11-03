@@ -2,12 +2,13 @@ import { Request, Response, Router } from "express";
 import jwt from "jsonwebtoken";
 import path from "path";
 import fs from "fs";
+// each controller simply call one or more service
 import {
   createFirstAdminService,
   getAllUsersService,
   getUserByIdService,
   createUserService,
-  updateUserService,
+  updateUserService,  
   updateUserStatusService,
   loginUserService,
   getMeService,
@@ -24,6 +25,7 @@ const router = Router();
 // ----------------------------
 // Generate JWT
 // ----------------------------
+// creates jwt token, whcih expire in 1 day.
 const generateToken = (user: any) => {
   return jwt.sign(
     { id: user.id, role: user.role, email: user.email },
@@ -35,6 +37,7 @@ const generateToken = (user: any) => {
 // ----------------------------
 // Create First Admin
 // ----------------------------
+// call the service to create admin, then log the action to the table.
 export const createFirstAdmin = async (req: Request, res: Response) => {
   try {
     const admin = await createFirstAdminService(req.body);
@@ -71,17 +74,20 @@ export const getUsersCount = async (req: Request, res: Response) => {
   }
 };
 
+// reads query params for pagination/filter/sort, calls service, logs activity, sends back data
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
     const { search, column, sortBy, sortOrder, includeCount } = req.query;
+    // if get in req then it, else 1
     const page = req.query.page ? Number(req.query.page) : 1;
+    // same if not in req, then 10
     const limit = req.query.limit ? Number(req.query.limit) : 10;
-
-    // validate sortOrder client-side-ish
+// if any of those in req, else undefined.
     const order = (sortOrder === "asc" || sortOrder === "desc") ? (sortOrder as "asc" | "desc") : undefined;
-
     // includeCount: if client explicitly says true OR it's the first page, include count
-    const includeCountBool = (includeCount === "true") || page === 1;
+
+    // const includeCountBool = (includeCount === "true") || page === 1;
+    const includeCountBool = true;
    
 
 
@@ -102,6 +108,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
         : "Unknown",
       type: "View",
       activity: `Fetched users - page ${page}`,
+      // empty but always placed, to prevent failure.
     }).catch(() => {});
 
     res.status(200).json(result);
@@ -140,9 +147,10 @@ export const getUserById = async (req: Request, res: Response) => {
 // ----------------------
 export const exportAllUsers = async (req: Request, res: Response) => {
   try {
+    // call service to generate csv, await means wait untill exportUsersCSVService() finishes.
     const { csvContent, users } = await exportUsersCSVService();
 
-    // 🪵 Log activity
+    //  a new var, to store the list of first few users, which we writted in the logs that, exported data of that taht.. like this in logs.
     const exportedIds = users.slice(0, 20).map((u) => u.id).join(", ");
     await logActivity({
       userId: req.user?.id || null,
@@ -155,7 +163,8 @@ export const exportAllUsers = async (req: Request, res: Response) => {
       })`,
     });
 
-    // 📤 Send CSV
+    //  Send CSV
+    // sets http headers,
     res.setHeader("Content-Disposition", "attachment; filename=users_export.csv");
     res.setHeader("Content-Type", "text/csv");
     res.status(200).send(csvContent);
@@ -226,6 +235,7 @@ export const createUser = async (req: Request, res: Response) => {
 // Update User
 // ----------------------------
 export const updateUser = async (req: Request, res: Response) => {
+ 
   try {
     const userId = Number(req.params.id);
     if (isNaN(userId))
@@ -241,7 +251,10 @@ export const updateUser = async (req: Request, res: Response) => {
           "../../assets",
           oldUser.profileImage.replace(/^\//, "")
         );
-        if (fs.existsSync(oldImagePath)) fs.unlinkSync(oldImagePath);
+        // means "check if a file or folder exists", synchronously, if yes return true else false
+        if (fs.existsSync(oldImagePath))
+          // dlt this file synchronously
+           fs.unlinkSync(oldImagePath);
       }
     }
 
@@ -302,9 +315,6 @@ export const updateUserStatus = async (req: Request, res: Response) => {
 // ----------------------------
 // Login User
 // ----------------------------
-// ----------------------------
-// Login User
-// ----------------------------
 export const loginUser = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
@@ -317,10 +327,15 @@ export const loginUser = async (req: Request, res: Response) => {
 
     // Set cookie
     res.cookie("token", token, {
+      // if true js cant accss that, like through document.cookie we cant able to get its value, and by false can read/write that in frontend js, in production we typically  set http true, so attackers can’t steal the cookie from JavaScript
       httpOnly: false,
+      // app is running on production mode
       secure: process.env.NODE_ENV === "production",
+      // This controls how and when cookies are sent in cross-site requests, means reqts from other domains, lax means cookie for normal same site-req, can be strict cookie sent only if req is from same site, none for to send cookie in all cross site req.
       sameSite: "lax",
+      // This sets how long (in milliseconds) the cookie should stay valid before expiring.
       maxAge: 24 * 60 * 60 * 1000,
+      //for which routes the cookie is valid for, / means for every route.
       path: "/",
     });
 
@@ -343,6 +358,7 @@ export const loginUser = async (req: Request, res: Response) => {
 // Logout User
 // ----------------------------
 export const logoutUser = async (req: Request, res: Response) => {
+  // as maximum age define how long the cookie should live, here we say after logout, remove cookie make it empty stg and expire it immediately.
   res.cookie("token", "", { maxAge: 0 });
 
   await logActivity({
@@ -373,7 +389,7 @@ export const getMe = async (req: Request, res: Response) => {
       activity: "Viewed own profile",
     });
 
-    res.status(200).json({ user }); // ✅ fixed response
+    res.status(200).json({ user });
   } catch (err: any) {
     res.status(500).json({ message: err.message });
   }
@@ -385,6 +401,7 @@ export const getMe = async (req: Request, res: Response) => {
 export const deleteUser = async (req: Request, res: Response) => {
   try {
     const userId = Number(req.params.id);
+    // is the user id not a number? first check user id should be in no.
     if (isNaN(userId))
       return res.status(400).json({ message: "Invalid user ID" });
 

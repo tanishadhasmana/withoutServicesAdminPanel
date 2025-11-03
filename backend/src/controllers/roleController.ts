@@ -8,10 +8,12 @@ import {
   deleteRole as deleteRoleService,
   getRolesCountService
 } from "../services/role.service";
+
 import { logActivity } from "../services/audit.service";
 
 export const getRoles = async (req: Request, res: Response) => {
   try {
+    // fetching the query parameter.
     const {
       id,
       role,
@@ -22,18 +24,18 @@ export const getRoles = async (req: Request, res: Response) => {
       sortBy,
       order
     } = req.query;
-
+// building the filter obj
     const filters: any = {};
     if (id) filters.id = id;
     if (role) filters.role = role;
     if (description) filters.description = description;
     if (status) filters.status = status;
-
+// convert page and limit to no. by base 10, means if parseInt("5", 10) → 5, parseInt("08", 10) → 8
     const pageNum = parseInt(page as string, 10) || 1;
     const limitNum = parseInt(limit as string, 10) || 10;
     const offset = (pageNum - 1) * limitNum;
 
-    // pass sorting to service
+    // service that giving role, and total.
     const { roles, total } = await getRolesService(
       filters,
       limitNum,
@@ -48,7 +50,6 @@ export const getRoles = async (req: Request, res: Response) => {
       type: "View",
       activity: `Fetched role list with filters & sorting`,
     });
-
     return res.json({
       roles,
       total,
@@ -103,6 +104,7 @@ export const getRoleById = async (req: Request, res: Response) => {
 // ----------------------------
 export const createRole = async (req: Request, res: Response) => {
   try {
+    
     const data = { ...req.body, createdBy: req.user?.id || null };
     const created = await createRoleService(data);
 

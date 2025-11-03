@@ -2,7 +2,7 @@ import { Knex } from "knex";
 
 export async function seed(knex: Knex): Promise<void> {
   await knex("permissions").del();
-
+// if status active then only show, else not
   await knex("permissions").insert([
     { name: "user_list", status: "active" },
     { name: "user_add", status: "active" },

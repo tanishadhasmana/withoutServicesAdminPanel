@@ -1,5 +1,6 @@
 import { Knex } from "knex";
-
+// up runs when apply migration, to create or modify tables.
+// down run when rolling back migration, like to undo changes.
 export async function up(knex: Knex): Promise<void> {
   return knex.schema.createTable("users", (table) => {
     table.increments("id").primary(); // userId

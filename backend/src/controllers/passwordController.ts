@@ -14,16 +14,14 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
   try {
     await forgotPasswordService(email);
-
-    // 🟢 Log activity
     await logActivity({
-      userId: null, // user is unknown here
+      userId: null, // user is unknown then mark as null.
       username: email,
       type: "Authentication",
       activity: `Requested password reset for email: ${email}`,
     });
-
     return res.json({ message: "Reset link sent to your email" });
+    
   } catch (err: any) {
     console.error("forgotPassword error:", err);
     return res
@@ -45,7 +43,7 @@ export const resetPassword = async (req: Request, res: Response) => {
   try {
     await resetPasswordService(token, newPassword);
 
-    // 🟢 Log activity
+    // Log activity
     await logActivity({
       userId: null, // we might not know user id here
       username: "Unknown",
